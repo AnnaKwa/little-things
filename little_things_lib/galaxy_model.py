@@ -5,13 +5,13 @@ from little_things_lib.helpers import calc_physical_distance_per_pixel
 class GalaxyModel:
     def __init__(
             self,
-            galaxy_name=None,
-            fits_file=None,
-            output_dir='output',
             distance_to_galaxy,
             deg_per_pixel,
             image_xdim,
-            image_ydim
+            image_ydim,
+            galaxy_name=None,
+            fits_file=None,
+            output_dir='output',
     ):
         self.galaxy_name = galaxy_name
         self.output_dir = output_dir
@@ -45,8 +45,8 @@ class GalaxyModel:
         self.v_systemic = v_systemic
         self.ring_parameters = {
             radius: {
-                'inc': inc,
-                'pos_ang': pos_ang,
+                'inc': inc * (np.pi/360),
+                'pos_ang': pos_ang * (np.pi/360),
                 'x_center': x,
                 'y_center': y
             }
@@ -70,10 +70,12 @@ class GalaxyModel:
         '''
         v_field = np.zeros(shape=(self.image_ydim, self.image_xdim))
         for r, v in zip(radii, v_rot):
-            for theta in np.linspace(0, 2.*np.pi, 200):
-                x, y, v_los = self._calc_v_los_at_r_theta(v, r theta)
-                arr_x, arr_y = np.round(x, 0), np.round(y, 0)
-                v_field[arr_y][arr_x] = v_los
+            for theta in np.linspace(0, 2.*np.pi, 1000):
+                x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
+                if (x < self.image_xdim-1  and y < self.image_ydim-1
+                and x>0 and y>0):
+                    arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
+                    v_field[arr_y][arr_x] = v_los
         return v_field
 
     def _calc_v_los_at_r_theta(
@@ -86,7 +88,7 @@ class GalaxyModel:
         x0 = self.ring_parameters[r]['x_center']
         y0 = self.ring_parameters[r]['y_center']
         x_from_galaxy_center, y_from_galaxy_center = self._convert_galaxy_to_observer_coords(r, theta)
-        v_los = v_rot * np.sin(inc)
+        v_los = v_rot * np.cos(theta) * np.sin(inc) - self.v_systemic
         x = x0 + x_from_galaxy_center
         y = y0 + y_from_galaxy_center
         return (x, y, v_los)
