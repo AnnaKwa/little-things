@@ -10,12 +10,12 @@ class GalaxyModel:
             image_xdim,
             image_ydim,
             galaxy_name=None,
-            fits_file=None,
+            vlos_2d_data=None,
             output_dir='output',
     ):
         self.galaxy_name = galaxy_name
         self.output_dir = output_dir
-        self.fits_file = fits_file
+        self.vlos_2d_data = vlos_2d_data
 
         # TODO: write func to automatically read deg/pix and dim from fits header and remove these args
         self.deg_per_pixel = deg_per_pixel
