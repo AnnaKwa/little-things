@@ -195,7 +195,11 @@ def abundance_match_behroozi_2012(Mhalo, z=0, alpha=None):
     return 10 ** log10Mstar
 
 
-def lnlike(params, args):
+def lnlike(
+        params,
+        args,
+        tilted_ring_model
+):
     rho0, sigma0, cross, ml_disk, ml_bulge = params
     galaxy, ss, mn, emcee_params, prior_params, reg_params, bounds = args
     ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
@@ -206,6 +210,8 @@ def lnlike(params, args):
 
     v_b = np.sqrt(ml_bulge) * galaxy.Data.Bulge
     v_d = np.sqrt(ml_disk) * galaxy.Data.Disk
+
+    
     v2_baryons = galaxy.Data.Gas ** 2 + v_d ** 2 + v_b ** 2
     lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / ss.GNewton)))
     r0 = 3 * sigma0 / np.sqrt(ss.fourpi * ss.GNewton * rho0)
@@ -286,13 +292,13 @@ def lnprior(theta, bounds):
     return 0.0
 
 
-def lnprob(theta, args):
+def lnprob(theta, args, tilted_ring_model):
     __, ss, __, __, __, __, bounds = args
     lp = lnprior(theta, bounds)
     if not np.isfinite(lp):
         return -np.inf, 0
     params = ss.unpack(theta)
-    lnl, bb = lnlike(params, args)
+    lnl, bb = lnlike(params, args, tilted_ring_model)
     blob = params + bb
     return lp + lnl, blob
 
@@ -419,7 +425,7 @@ def lnprior(theta, bounds):
     return 0.0
 
 
-def lnprob(theta, args):
+def lnprob(theta, args, tilted_ring_model):
     __, ss, __, __, __, __, bounds = args
     lp = lnprior(theta, bounds)
     if not np.isfinite(lp):

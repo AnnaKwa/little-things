@@ -1,4 +1,6 @@
 import numpy as np
+import functools
+from inspect import signature, Parameter
 
 RADIANS_PER_DEG = np.pi / 180.
 
@@ -15,3 +17,33 @@ def calc_physical_distance_per_pixel(
     radians_per_pix = deg_per_pix * RADIANS_PER_DEG
     distance_per_pix = distance_to_galaxy * radians_per_pix
     return distance_per_pix
+
+
+def auto_assign(func):
+    """
+    to make initializing classes quicker
+    :param func:
+    :return:
+    """
+    # Signature:
+    sig = signature(func)
+    for name, param in sig.parameters.items():
+        if param.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
+            raise RuntimeError('Unable to auto assign if *args or **kwargs in signature.')
+    # Wrapper:
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+        for i, (name, param) in enumerate(sig.parameters.items()):
+            # Skip 'self' param:
+            if i == 0: continue
+            # Search value in args, kwargs or defaults:
+            if i - 1 < len(args):
+                val = args[i - 1]
+            elif name in kwargs:
+                val = kwargs[name]
+            else:
+                val = param.default
+            setattr(self, name, val)
+        func(self, *args, **kwargs)
+    return wrapper
+

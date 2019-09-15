@@ -42,6 +42,7 @@ class GalaxyModel:
             y_pix_center [pixel]
 
         '''
+        self.radii = radii
         self.v_systemic = v_systemic
         self.ring_parameters = {
             radius: {
