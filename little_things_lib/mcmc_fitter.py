@@ -15,7 +15,7 @@ from matplotlib import rcParams
 from SPARCdata import unpack_emcee_params
 from autocorr import get_autocorr_N
 
-from galaxy_model import GalaxyModel
+from galaxy import Galaxy
 
 
 def start_pos(args):
@@ -201,7 +201,7 @@ def lnlike(
         tilted_ring_model
 ):
     rho0, sigma0, cross, ml_disk, ml_bulge = params
-    galaxy, ss, mn, emcee_params, prior_params, reg_params, bounds = args
+    galaxy, sidm_setup, mn, emcee_params, prior_params, reg_params, bounds = args
     ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
     rmax_prior, rmax100, slope, log10rmax_spread, \
     log10c200_spread, tophat_prior, half_width, \
@@ -211,10 +211,10 @@ def lnlike(
     v_b = np.sqrt(ml_bulge) * galaxy.Data.Bulge
     v_d = np.sqrt(ml_disk) * galaxy.Data.Disk
 
-    
+
     v2_baryons = galaxy.Data.Gas ** 2 + v_d ** 2 + v_b ** 2
-    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / ss.GNewton)))
-    r0 = 3 * sigma0 / np.sqrt(ss.fourpi * ss.GNewton * rho0)
+    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / sidm_setup.GNewton)))
+    r0 = 3 * sigma0 / np.sqrt(sidm_setup.fourpi * sidm_setup.GNewton * rho0)
     mnorm = rho0 * r0 ** 3
     interp_m = InterpolatedUnivariateSpline(lines[:, 0] / r0, lines[:, 1] / mnorm, k=2)
     rm = lines[0, 0] / r0
@@ -236,9 +236,9 @@ def lnlike(
     v2_dm = []
     for r, m in zip(galaxy.Data.R, mass):
         if r > r1:
-            vd2 = ss.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
+            vd2 = sidm_setup.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
         else:
-            vd2 = ss.GNewton * m / r
+            vd2 = sidm_setup.GNewton * m / r
         v2_dm = np.append(v2_dm, vd2)
     v_m = np.sqrt(v2_dm + v2_baryons)
     if not np.all([np.isfinite(item) for item in v_m]):
@@ -293,11 +293,11 @@ def lnprior(theta, bounds):
 
 
 def lnprob(theta, args, tilted_ring_model):
-    __, ss, __, __, __, __, bounds = args
+    __, sidm_setup, __, __, __, __, bounds = args
     lp = lnprior(theta, bounds)
     if not np.isfinite(lp):
         return -np.inf, 0
-    params = ss.unpack(theta)
+    params = sidm_setup.unpack(theta)
     lnl, bb = lnlike(params, args, tilted_ring_model)
     blob = params + bb
     return lp + lnl, blob
@@ -321,12 +321,12 @@ def chisq_2d(
     vlos_2d_data = tilted_ring_model.vlos_2d_data
     vlos_2d_model = tilted_ring_model.create_2d_velocity_field(
         tilted_ring_params['radii'],
-        v_rot=rotation_curve
+        v_rot=v_rot_1d_model
     )
     if v_err_2d:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / (v_err_2d) ** 2)
+        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
     else:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / (v_err_const) ** 2)
+        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
     return chisq
 
 
@@ -336,7 +336,7 @@ def tophat(x):
 
 def lnlike(params, args):
     rho0, sigma0, cross, ml_disk, ml_bulge = params
-    galaxy, ss, mn, emcee_params, prior_params, reg_params, bounds = args
+    galaxy, sidm_setup, mn, emcee_params, prior_params, reg_params, bounds = args
     ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
     rmax_prior, rmax100, slope, log10rmax_spread, \
     log10c200_spread, tophat_prior, half_width, \
@@ -346,8 +346,8 @@ def lnlike(params, args):
     v_b = np.sqrt(ml_bulge) * galaxy.Data.Bulge
     v_d = np.sqrt(ml_disk) * galaxy.Data.Disk
     v2_baryons = galaxy.Data.Gas ** 2 + v_d ** 2 + v_b ** 2
-    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / ss.GNewton)))
-    r0 = 3 * sigma0 / np.sqrt(ss.fourpi * ss.GNewton * rho0)
+    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / sidm_setup.GNewton)))
+    r0 = 3 * sigma0 / np.sqrt(sidm_setup.fourpi * sidm_setup.GNewton * rho0)
     mnorm = rho0 * r0 ** 3
     interp_m = InterpolatedUnivariateSpline(lines[:, 0] / r0, lines[:, 1] / mnorm, k=2)
     rm = lines[0, 0] / r0
@@ -369,9 +369,9 @@ def lnlike(params, args):
     v2_dm = []
     for r, m in zip(galaxy.Data.R, mass):
         if r > r1:
-            vd2 = ss.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
+            vd2 = sidm_setup.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
         else:
-            vd2 = ss.GNewton * m / r
+            vd2 = sidm_setup.GNewton * m / r
         v2_dm = np.append(v2_dm, vd2)
     v_m = np.sqrt(v2_dm + v2_baryons)
     if not np.all([np.isfinite(item) for item in v_m]):

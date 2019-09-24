@@ -1,0 +1,215 @@
+import numpy as np
+from scipy.interpolate import interp1d
+from mcmc_fitter import lnlike
+from little_things_lib.helpers import calc_physical_distance_per_pixel
+
+class Galaxy:
+    def __init__(
+            self,
+            distance_to_galaxy,
+            deg_per_pixel,
+            image_xdim,
+            image_ydim,
+            galaxy_name=None,
+            vlos_2d_data=None,
+            output_dir='output',
+            luminosity=None,
+            HI_mass=None
+    ):
+        self.galaxy_name = galaxy_name
+        self.output_dir = output_dir
+        self.vlos_2d_data = vlos_2d_data
+        self.luminosity = luminosity
+        self.HI_mass = HI_mass
+
+        # TODO: write func to automatically read deg/pix and dim from fits header and remove these args
+        self.deg_per_pixel = deg_per_pixel
+        self.kpc_per_pixel = calc_physical_distance_per_pixel(distance_to_galaxy, self.deg_per_pixel)
+        self.image_xdim, self.image_ydim = image_xdim, image_ydim
+
+
+    def get_mcmc_start_position(
+            self,
+            number_grid_points_per_param=None
+    ):
+        bounds = np.array(self.bounds)
+        if not number_grid_points_per_param:
+            number_grid_points_per_param = [
+                4,  # log10(rate0)
+                8,  # log10(sigma0)
+                1,  # cross section
+                4  # ML disk
+            ]
+
+        # set max for rate to be 10**3.5 at most
+        bounds[0][1] = min(3.5, bounds_in[0][1])
+
+        boundary_offsets = [0.1 * (bound[1] - bound[0]) for bound in bounds]
+        start_grid = [np.linspace(bound[0] + boundary_offset, bounds[1] - boundary_offset, num_to_sample)
+                      for bound, boundary_offset, num_to_sample
+                      in zip(bounds, boundary_offsets, number_grid_points_per_param)]
+
+        def convert_to_physical_parameter_space(mcmc_space_parameters):
+            theta = mcmc_space_parameters
+            return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
+                   10 ** theta[2], theta[3]
+
+        # explode to all possible combinations of starting params
+        possible_start_combinations_0 = [row.flatten() for row in np.meshgrid(*start_grid)]
+        possible_start_combinations = list(zip(*possible_start_combinations_0))
+        possible_start_combinations_physical_space = [
+            convert_to_physical_parameter_space(parameter_space_point)
+            for parameter_space_point in possible_start_combinations
+        ]
+        # TODO: refactor the lnlike function to take specific parameters and add those as parameters to this function
+        lnlike_grid = [
+            lnlike(parameter_space_point, args)
+            for parameter_space_point in possible_start_combinations_physical_space
+        ]
+        start_point = possible_start_combinations_physical_space[np.argmax(lnlike_grid)]
+        self.start_point = start_point
+
+
+    def set_prior_bounds(
+            self,
+            ml_median=0.5,
+            rmax_prior=False,
+            vmax_prior=False,
+            log10_rmax_spread=0.11,
+            log10_c200_spread = 0.11,
+            abs_err_vel_factor=0.05,
+            tophat_width=3
+    ):
+        if self.luminosity and self.HI_mass:
+            abs_err_vel = abs_err_vel_factor * ((0.5 * self.luminosity + self.HI_mass) * 1e9 / 50) ** 0.25
+        else:
+            raise ValueError('Need to set luminosity and HI mass for galaxy.')
+        regularization_params = (abs_err_vel, 0.0, vmax_prior, 1.414)  # what are these??
+        bounds = {
+            'rate_constant': (np.log10(2),np.log10(1e5)),
+            'sigma0': (np.log10(2),np.log10(500)),
+            'rho0': (np.log10(cross),np.log10(cross)),
+            'ml': (0.3,0.8)
+        }
+        prior_params = {
+            'rmax_prior': rmax_prior,
+            'log10_rmax_spread': log10_rmax_spread,
+            'log10_c200_spread': log10_c200_spread,
+            'ml_median': ml_median,
+            'tophat_width': 3.
+        }
+
+        self.regularization_params = regularization_params
+        self.bounds = bounds
+        self.prior_params = prior_params
+
+
+    def interpolate_baryonic_rotation_curve(
+            self,
+            baryon_type, # stellar/star/stars or gas
+            rotation_curve_radii,
+            rotation_curve_velocities
+    ):
+        """
+
+        :param gas_rotation_curve_radii: [kpc]
+        :param gas_rotation_curve_velocities: [km/s]
+        :return:
+        """
+        interp_rotation = interp1d(rotation_curve_radii, rotation_curve_velocities)
+        v_interp = interp_rotation(self.radii)
+        if baryon_type == 'gas':
+            self.v_gas = v_interp
+        else:
+            self.v_stellar = v_interp
+
+    def set_tilted_ring_parameters(
+            self,
+            v_systemic,
+            radii,
+            inclination,
+            position_angle,
+            x_pix_center,
+            y_pix_center
+    ):
+        '''
+        scalar (single value) inputs:
+            v_systemic [km/s]
+        the following inputs should be 1 dim lists or arrays of same length
+            radii [kpc]
+            inclination [deg]
+            position_angle [deg]
+            x_pix_center [pixel]
+            y_pix_center [pixel]
+
+        '''
+        self.radii = radii
+        self.v_systemic = v_systemic
+        self.ring_parameters = {
+            radius: {
+                'inc': inc * (np.pi/360),
+                'pos_ang': pos_ang * (np.pi/360),
+                'x_center': x,
+                'y_center': y
+            }
+            for radius, inc, pos_ang, x, y
+                in zip(radii, inclination, position_angle, x_pix_center, y_pix_center)
+        }
+
+    def create_2d_velocity_field(
+            self,
+            radii,
+            v_rot
+    ):
+        '''
+        uses tilted ring model parameters to calculate velocity field
+        using eqn 1-3 of 1709.02049 and v_rot from mass model
+
+        it is easier to loop through polar coordinates and then map the v_los to the
+        nearest x,y point
+
+        returns 2d velocity field array
+        '''
+        v_field = np.zeros(shape=(self.image_ydim, self.image_xdim))
+        for r, v in zip(radii, v_rot):
+            for theta in np.linspace(0, 2.*np.pi, 1000):
+                x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
+                if (self.image_xdim - 1 > x > 0 and y < self.image_ydim-1 and y>0):
+                    arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
+                    v_field[arr_y][arr_x] = v_los
+        return v_field
+
+    def _calc_v_los_at_r_theta(
+            self,
+            v_rot,
+            r,
+            theta
+    ):
+        inc = self.ring_parameters[r]['inc']
+        x0 = self.ring_parameters[r]['x_center']
+        y0 = self.ring_parameters[r]['y_center']
+        x_from_galaxy_center, y_from_galaxy_center = self._convert_galaxy_to_observer_coords(r, theta)
+        v_los = v_rot * np.cos(theta) * np.sin(inc) - self.v_systemic
+        x = x0 + x_from_galaxy_center
+        y = y0 + y_from_galaxy_center
+        return (x, y, v_los)
+
+
+    def _convert_galaxy_to_observer_coords(
+            self,
+            r,
+            theta
+    ):
+        '''
+
+        :param r: physical distance from center [kpc]
+        :param theta: azimuthal measured CCW from major axis in plane of disk
+        :return: x, y coords in observer frame after applying inc and position angle adjustment
+        '''
+        inc = self.ring_parameters[r]['inc']
+        pos_ang = self.ring_parameters[r]['pos_ang']
+        x_kpc = r * (np.cos(pos_ang) * np.cos(theta) - np.sin(pos_ang) * np.sin(theta) * np.sin(inc))
+        y_kpc = r * (np.sin(pos_ang) * np.cos(theta) + np.cos(pos_ang) * np.sin(theta) * np.sin(inc))
+        x_pix = x_kpc / self.kpc_per_pixel
+        y_pix = y_kpc / self.kpc_per_pixel
+        return (x_pix, y_pix)
