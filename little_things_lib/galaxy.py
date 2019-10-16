@@ -1,7 +1,9 @@
 import numpy as np
 from scipy.interpolate import interp1d
-from mcmc_fitter import lnlike
-from little_things_lib.helpers import calc_physical_distance_per_pixel
+#from .mcmc_fitter import lnlike
+from .helpers import calc_physical_distance_per_pixel
+
+SEC_PER_GYR = 3.15576e+16
 
 class Galaxy:
     def __init__(
@@ -14,7 +16,8 @@ class Galaxy:
             vlos_2d_data=None,
             output_dir='output',
             luminosity=None,
-            HI_mass=None
+            HI_mass=None,
+            age=10. # Gyr
     ):
         self.galaxy_name = galaxy_name
         self.output_dir = output_dir
@@ -22,81 +25,48 @@ class Galaxy:
         self.luminosity = luminosity
         self.HI_mass = HI_mass
 
+        self.rate_constant = 1.5278827817856099e-26 * age * SEC_PER_GYR
+
         # TODO: write func to automatically read deg/pix and dim from fits header and remove these args
         self.deg_per_pixel = deg_per_pixel
         self.kpc_per_pixel = calc_physical_distance_per_pixel(distance_to_galaxy, self.deg_per_pixel)
         self.image_xdim, self.image_ydim = image_xdim, image_ydim
 
 
-    def get_mcmc_start_position(
-            self,
-            number_grid_points_per_param=None
-    ):
-        bounds = np.array(self.bounds)
-        if not number_grid_points_per_param:
-            number_grid_points_per_param = [
-                4,  # log10(rate0)
-                8,  # log10(sigma0)
-                1,  # cross section
-                4  # ML disk
-            ]
-
-        # set max for rate to be 10**3.5 at most
-        bounds[0][1] = min(3.5, bounds_in[0][1])
-
-        boundary_offsets = [0.1 * (bound[1] - bound[0]) for bound in bounds]
-        start_grid = [np.linspace(bound[0] + boundary_offset, bounds[1] - boundary_offset, num_to_sample)
-                      for bound, boundary_offset, num_to_sample
-                      in zip(bounds, boundary_offsets, number_grid_points_per_param)]
-
-        def convert_to_physical_parameter_space(mcmc_space_parameters):
-            theta = mcmc_space_parameters
-            return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
-                   10 ** theta[2], theta[3]
-
-        # explode to all possible combinations of starting params
-        possible_start_combinations_0 = [row.flatten() for row in np.meshgrid(*start_grid)]
-        possible_start_combinations = list(zip(*possible_start_combinations_0))
-        possible_start_combinations_physical_space = [
-            convert_to_physical_parameter_space(parameter_space_point)
-            for parameter_space_point in possible_start_combinations
-        ]
-        # TODO: refactor the lnlike function to take specific parameters and add those as parameters to this function
-        lnlike_grid = [
-            lnlike(parameter_space_point, args)
-            for parameter_space_point in possible_start_combinations_physical_space
-        ]
-        start_point = possible_start_combinations_physical_space[np.argmax(lnlike_grid)]
-        self.start_point = start_point
-
-
     def set_prior_bounds(
             self,
+            cross_section_bounds=(2.999, 3.001),
+            rate_bounds=(2, 1e4),
+            sigma0_bounds=(2, 1e3),
+            ml_bounds=(0.1, 10),
             ml_median=0.5,
             rmax_prior=False,
             vmax_prior=False,
             log10_rmax_spread=0.11,
             log10_c200_spread = 0.11,
             abs_err_vel_factor=0.05,
-            tophat_width=3
+            tophat_width=3.
     ):
         if self.luminosity and self.HI_mass:
             abs_err_vel = abs_err_vel_factor * ((0.5 * self.luminosity + self.HI_mass) * 1e9 / 50) ** 0.25
         else:
             raise ValueError('Need to set luminosity and HI mass for galaxy.')
         regularization_params = (abs_err_vel, 0.0, vmax_prior, 1.414)  # what are these??
+
+        rho0_bounds = (rate_bounds[0] / (self.rate_constant * sigma0_bounds[0] * cross_section_bounds[0]),
+                       rate_bounds[1] / (self.rate_constant * sigma0_bounds[1] * cross_section_bounds[1]))
         bounds = {
-            'rate_constant': (np.log10(2),np.log10(1e5)),
-            'sigma0': (np.log10(2),np.log10(500)),
-            'rho0': (np.log10(cross),np.log10(cross)),
-            'ml': (0.3,0.8)
+            'rho0': tuple(np.log10(rho0_bounds)),
+            'sigma0': tuple(np.log10(sigma0_bounds)),
+            'cross_section': cross_section_bounds,
+            'ml': ml_bounds
         }
         prior_params = {
             'rmax_prior': rmax_prior,
             'log10_rmax_spread': log10_rmax_spread,
             'log10_c200_spread': log10_c200_spread,
             'ml_median': ml_median,
-            'tophat_width': 3.
+            'tophat_width': tophat_width
         }
 
         self.regularization_params = regularization_params

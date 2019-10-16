@@ -1,4 +1,9 @@
-
+import numpy as np
+from .constants import GNEWTON
+from scipy.integrate import odeint
+from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.optimize import brentq
+import warnings
 
 class sidm_halo_setup:
 
@@ -11,24 +16,24 @@ class sidm_halo_setup:
 
     def unpack(self, theta):
         return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
-               10 ** theta[2], theta[3], theta[4]
+              theta[2], theta[3]
 
     def pack(self, rho0, sigma0, cross, ml_disk, ml_bulge):
         return np.log10(self.rate_const * rho0 * sigma0 * cross), np.log10(sigma0), \
-               np.log10(cross), ml_disk, ml_bulge
+               cross, ml_disk
 
     def unpack_2(self, theta):
-        return theta[0] - theta[1] - theta[2] - np.log10(self.rate_const), theta[1], theta[2], theta[3], theta[4]
+        return theta[0] - theta[1] - theta[2] - np.log10(self.rate_const), theta[1], theta[2], theta[3]
 
     def unpack_3(self, theta):
         return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
-               10 ** theta[2], 10 ** theta[3], 10 ** theta[4]
+               theta[2], theta[3]
 
     def pack_3(self, rho0, sigma0, cross, ml_disk, ml_bulge):
         return np.log10(self.rate_const * rho0 * sigma0 * cross), np.log10(sigma0), \
-               np.log10(cross), np.log10(ml_disk), np.log10(ml_bulge)
+               cross, ml_disk
 
-class match_nfw:
+class NFWMatcher:
 
     def __init__(self):
         self.x_iso_min, self.x_iso_max = 1e-4, 1e2
@@ -69,19 +74,20 @@ def fsidm(y, x, massB): # for scipy.integrate.odeint
     return [drhodr, dmassdr]
 
 
-def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, args):
-    galaxy, ss, mn, __, __, __, __ = args
+def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
+    mn = nfw_matcher
 
-    x0 = 0.1*galaxy.Data.R[0]/r0
-    y0 = np.array([1.0, (ss.fourpi / 3.0) * x0 ** 3])
-    x = np.concatenate(([x0],galaxy.Data.R/r0))
+    x0 = 0.1*galaxy.radii[0]/r0
+    y0 = np.array([1.0, (4.*np.pi / 3.0) * x0 ** 3])
+    x = np.concatenate(([x0],galaxy.radii/r0))
     y = odeint(fsidm, y0, x, args=(massB,))
-    rr = ss.rate_const * cross * sigma0 * y[:,0] * rho0
+    rr = galaxy.rate_constant * cross * sigma0 * y[:,0] * rho0
+
     if rr[-1] > 1.0:
         x1 = np.logspace(np.log10(x[-1]),np.log10(2.0*x[-1]),5)
         y1 = odeint(fsidm, y[-1,:], x1, args=(massB,))
         while True:
-            if ss.rate_const * cross * sigma0 * y1[-1,0] * rho0 < 1.0:
+            if galaxy.rate_constant * cross * sigma0 * y1[-1,0] * rho0 < 1.0:
                 break
             else:
                 x1 = np.logspace(np.log10(x1[-1]),np.log10(2.0*x1[-1]),5)
@@ -94,7 +100,7 @@ def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, args):
     else:
         print("error_1. Shouldn't be here.")
         input('Press <ENTER> to continue. The code will exit with errors.')
-    rho1 = 1.0/(ss.rate_const * cross * sigma0)
+    rho1 = 1.0/(galaxy.rate_constant * cross * sigma0)
     if np.any([y1[i,0]>y1[i-1,0] for i in range(1,len(x1))]):
         r1 = (x1[0]+x1[-1])/2
         m1 = 1e20
@@ -108,17 +114,17 @@ def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, args):
                   r0,rho0,sigma0,x1[0]*r0,x1[-1]*r0,x*r0,rr)
         r1 = brentq((lambda x: rate(x)-1), x1[0]*r0, x1[-1]*r0, rtol=1e-4)
         m1 = mass(r1)
-        mr1 = max(m1/(ss.fourpi * density(r1) * r1 ** 3), 0.5)
+        mr1 = max(m1/(4.*np.pi * density(r1) * r1 ** 3), 0.5)
         rs = r1 / mn.r1_over_rs(mr1)
         if mr1 < 0.5: print("error_3: ",\
-                            rho0,sigma0,r1,m1,m1/(ss.fourpi * density(r1) * r1 ** 3))
+                            rho0,sigma0,r1,m1,m1/(4.*np.pi * density(r1) * r1 ** 3))
     if m1 < 0:
         print("error_4 (mass(r1) negative): ",\
               r0,r1,m1,x1*r0,y1[:,0]*rho0,y1[:,1]*mnorm)
     mnfw0 = m1 / mn.nfw_m_profile(r1/rs)
     rmax = 2.163 * rs
-    vmax = np.sqrt(ss.GNewton * mnfw0 * mn.nfw_m_profile(2.163) / rmax )
-    rhos = vmax ** 2 * 2.163 / (ss.GNewton * ss.fourpi * 0.467676 * rs ** 2 )
+    vmax = np.sqrt(GNEWTON * mnfw0 * mn.nfw_m_profile(2.163) / rmax )
+    rhos = vmax ** 2 * 2.163 / (GNEWTON * 4.* np.pi * 0.467676 * rs ** 2 )
 
     lgrhos = np.log(rhos)
     if lgrhos > mn._logrhos_vir[-1]:
