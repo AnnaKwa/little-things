@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.interpolate import interp1d
-#from .mcmc_fitter import lnlike
 from .helpers import calc_physical_distance_per_pixel
 
 SEC_PER_GYR = 3.15576e+16

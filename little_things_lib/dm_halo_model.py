@@ -5,33 +5,6 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy.optimize import brentq
 import warnings
 
-class sidm_halo_setup:
-
-    def __init__(self, tilted_ring_model):
-        self.GNewton = 4.302113488372941e-06  # G in kpc * (km/s)**2 / Msun
-        self.fourpi = 4.0 * np.pi
-        self.age = 10.0  # gyrs
-        self.gyr = 3.15576e+16
-        self.rate_const = 1.5278827817856099e-26 * self.age * self.gyr
-
-    def unpack(self, theta):
-        return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
-              theta[2], theta[3]
-
-    def pack(self, rho0, sigma0, cross, ml_disk, ml_bulge):
-        return np.log10(self.rate_const * rho0 * sigma0 * cross), np.log10(sigma0), \
-               cross, ml_disk
-
-    def unpack_2(self, theta):
-        return theta[0] - theta[1] - theta[2] - np.log10(self.rate_const), theta[1], theta[2], theta[3]
-
-    def unpack_3(self, theta):
-        return 10 ** (theta[0] - theta[1] - theta[2]) / self.rate_const, 10 ** theta[1], \
-               theta[2], theta[3]
-
-    def pack_3(self, rho0, sigma0, cross, ml_disk, ml_bulge):
-        return np.log10(self.rate_const * rho0 * sigma0 * cross), np.log10(sigma0), \
-               cross, ml_disk
 
 class NFWMatcher:
 
@@ -67,6 +40,7 @@ class NFWMatcher:
     def dutton_c200(self, m200):
         log10c200 = 0.905 - 0.101 * np.log10(m200 / (1e12 / self._h0))
         return 10 ** log10c200
+
 
 def fsidm(y, x, massB): # for scipy.integrate.odeint
     drhodr = - 9.0 * (massB(x) + y[1]) * y[0] / ( 4 * np.pi * x ** 2 )
@@ -150,67 +124,6 @@ def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
 
     return r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, np.delete(y[:,0],0)*rho0, np.delete(y[:,1],0)*mnorm
 
-
-def abundance_match_behroozi_2012(Mhalo, z=0, alpha=None):
-    """
-    do abundance matching from arxiv 1207.6105v1
-    alpha can be specified as the faint end slope
-    at z = 0, alpha = -1.474
-
-    as of 10/2014, this jives with what's on his website
-    """
-
-    if alpha is not None:
-        vara = True
-    else:
-        vara = False
-
-    from numpy import log10, exp
-    def f(x, alpha, delta, gamma):
-        top = log10(1 + exp(x)) ** gamma
-        ibottom = 1 / (1 + exp(10 ** -x)) if x > -2.0 else 0
-        return -log10(10 ** (alpha * x) + 1) + delta * top * ibottom
-
-    a = 1. / (1. + z)
-
-    nu = exp(-4 * a ** 2)
-    log10epsilon = -1.777 + (-0.006 * (a - 1) - 0.000 * z) * nu - 0.119 * (a - 1)
-    epsilon = 10 ** log10epsilon
-
-    log10M1 = 11.514 + (-1.793 * (a - 1) - 0.251 * z) * nu
-    M1 = 10 ** log10M1
-
-    if alpha is None:
-        alpha = -1.412 + (0.731 * (a - 1)) * nu
-    else:
-        defalpha = -1.412 + (0.731 * (a - 1)) * nu
-
-    delta = 3.508 + (2.608 * (a - 1) - 0.043 * z) * nu
-    gamma = 0.316 + (1.319 * (a - 1) + 0.279 * z) * nu
-
-    if not vara:
-        log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), alpha, delta, gamma) - f(0, alpha, delta, gamma)
-
-    else:
-        from numpy import array, empty_like
-        if type(Mhalo) != type(array([1.0, 2.0, 3.0])):
-            if Mhalo >= M1:
-                # then I use the default alpha
-                log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), defalpha, delta, gamma) - f(0, defalpha, delta,
-                                                                                                    gamma)
-            else:
-                # then I use my alpha
-                log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), alpha, delta, gamma) - f(0, alpha, delta, gamma)
-        else:
-            log10Mstar = empty_like(Mhalo)
-            log10Mstar[Mhalo >= M1] = log10(epsilon * M1) + f(log10(Mhalo[Mhalo >= M1] / M1), defalpha, delta,
-                                                              gamma) - f(0, defalpha, delta, gamma)
-            log10Mstar[Mhalo < M1] = log10(epsilon * M1) + f(log10(Mhalo[Mhalo < M1] / M1), alpha, delta, gamma) - f(0,
-                                                                                                                     alpha,
-                                                                                                                     delta,
-                                                                                                                     gamma)
-
-    return 10 ** log10Mstar
 
 def get_dens_mass_without_baryon_effect(rho0, sigma0, cross, r0, mnorm, args):
     galaxy, ss, mn, __, __, __, __ = args

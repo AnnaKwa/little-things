@@ -1,3 +1,5 @@
+# original functions from Manoj's code
+
 import numpy as np
 import os, emcee, corner, warnings
 from scipy.interpolate import InterpolatedUnivariateSpline
@@ -9,6 +11,71 @@ from SPARCdata import unpack_emcee_params
 from autocorr import get_autocorr_N
 
 from galaxy import Galaxy
+
+def tophat(x):
+    return -2 * np.log(1 / (1 + x ** 40))
+
+def abundance_match_behroozi_2012(Mhalo, z=0, alpha=None):
+    """
+    do abundance matching from arxiv 1207.6105v1
+    alpha can be specified as the faint end slope
+    at z = 0, alpha = -1.474
+
+    as of 10/2014, this jives with what's on his website
+    """
+
+    if alpha is not None:
+        vara = True
+    else:
+        vara = False
+
+    from numpy import log10, exp
+    def f(x, alpha, delta, gamma):
+        top = log10(1 + exp(x)) ** gamma
+        ibottom = 1 / (1 + exp(10 ** -x)) if x > -2.0 else 0
+        return -log10(10 ** (alpha * x) + 1) + delta * top * ibottom
+
+    a = 1. / (1. + z)
+
+    nu = exp(-4 * a ** 2)
+    log10epsilon = -1.777 + (-0.006 * (a - 1) - 0.000 * z) * nu - 0.119 * (a - 1)
+    epsilon = 10 ** log10epsilon
+
+    log10M1 = 11.514 + (-1.793 * (a - 1) - 0.251 * z) * nu
+    M1 = 10 ** log10M1
+
+    if alpha is None:
+        alpha = -1.412 + (0.731 * (a - 1)) * nu
+    else:
+        defalpha = -1.412 + (0.731 * (a - 1)) * nu
+
+    delta = 3.508 + (2.608 * (a - 1) - 0.043 * z) * nu
+    gamma = 0.316 + (1.319 * (a - 1) + 0.279 * z) * nu
+
+    if not vara:
+        log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), alpha, delta, gamma) - f(0, alpha, delta, gamma)
+
+    else:
+        from numpy import array, empty_like
+        if type(Mhalo) != type(array([1.0, 2.0, 3.0])):
+            if Mhalo >= M1:
+                # then I use the default alpha
+                log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), defalpha, delta, gamma) - f(0, defalpha, delta,
+                                                                                                    gamma)
+            else:
+                # then I use my alpha
+                log10Mstar = log10(epsilon * M1) + f(log10(Mhalo / M1), alpha, delta, gamma) - f(0, alpha, delta, gamma)
+        else:
+            log10Mstar = empty_like(Mhalo)
+            log10Mstar[Mhalo >= M1] = log10(epsilon * M1) + f(log10(Mhalo[Mhalo >= M1] / M1), defalpha, delta,
+                                                              gamma) - f(0, defalpha, delta, gamma)
+            log10Mstar[Mhalo < M1] = log10(epsilon * M1) + f(log10(Mhalo[Mhalo < M1] / M1), alpha, delta, gamma) - f(0,
+                                                                                                                     alpha,
+                                                                                                                     delta,
+                                                                                                                     gamma)
+
+    return 10 ** log10Mstar
+
 
 class sidm_setup:
     
