@@ -1,10 +1,11 @@
 import os
 import emcee
-
-from dm_halo_model import (
+from .constants import GNEWTON
+from .dm_halo_model import (
     abundance_match_behroozi_2012,
-    get_dens_mass_without_baryon_effect)
-
+    NFWMatcher,
+    get_dens_mass)
+import warnings
 import numpy as np
 import os, emcee, corner, warnings
 from scipy.interpolate import InterpolatedUnivariateSpline
@@ -12,55 +13,79 @@ from scipy.integrate import odeint
 from scipy.optimize import brentq, minimize
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from SPARCdata import unpack_emcee_params
-from autocorr import get_autocorr_N
-
-from galaxy_model import GalaxyModel
+#from autocorr import get_autocorr_N
 
 
-def start_pos(args):
-    galaxy, ss, mn, __, __, __, bounds_in = args
+def convert_to_physical_parameter_space(mcmc_space_parameters):
+    theta_mcmc = mcmc_space_parameters
+    return 10 ** theta_mcmc[0], 10 ** theta_mcmc[1], theta_mcmc[2], theta_mcmc[3]
 
-    bounds = np.array(bounds_in)
-    ng = np.ones(len(bounds_in))
 
-    ng[0] = 4;  # for log10(rate0)
-    bounds[0][1] = min(3.5, bounds_in[0][1])
+def convert_to_mcmc_parameter_space(physical_space_parameters):
+    theta_physical = physical_space_parameters
+    return np.log10(theta_physical[0]), np.log10(theta_physical[1]), theta_physical[2], theta_physical[3]
 
-    ng[1] = 8;  # for log10(sigma0)
-    if galaxy.Vflat > 0:
-        bounds[1][0] = max(np.log10(galaxy.Vflat / 3), bounds_in[1][0])
-        bounds[1][1] = min(np.log10(galaxy.Vflat), bounds_in[1][1])
-    else:
-        bounds[1][0] = bounds_in[1][0]
-        bounds[1][1] = bounds_in[1][1]
 
-    ng[2] = 1;  # for cross
 
-    ng[3] = 4;  # for ML_disk
-    bounds[3][1] = min(1.0, bounds_in[3][1])
-    bounds[3][0] = max(0.1, bounds_in[3][0])
+def get_mcmc_start_position(
+        galaxy,
+        number_grid_points_per_param=None
+):
+    bounds = np.array(
+        [galaxy.bounds['rho0'],
+         galaxy.bounds['sigma0'],
+         galaxy.bounds['cross_section'],
+         galaxy.bounds['ml'],
+         ])
 
-    if sum(galaxy.Data.Bulge) > 0:
-        ng[4] = 4;  # for ML_bulge
-        bounds[4][0] = max(0.1, bounds_in[4][0])
-        bounds[4][1] = min(1.5, bounds_in[4][1])
-    else:
-        ng[4] = 1;  # for ML_bulge
-        bounds[4][0] = bounds[4][1]
+    if not number_grid_points_per_param:
+        number_grid_points_per_param = [
+            4,  # log10(rho0)
+            8,  # log10(sigma0)
+            1,  # cross section
+            4  # ML disk
+        ]
 
-    std = [0.1 * (b[1] - b[0]) for b in bounds]
-    g1 = [np.linspace(bounds[i][0] + std[i], bounds[i][1] - std[i], ng[i]) \
-          for i in range(len(bounds_in))]
-    g2 = np.meshgrid(*g1)
-    g3 = [g.flatten() for g in g2]
-    grid = list(zip(*g3))
-    lnlike_grid = [lnlike(ss.unpack(item), args)[0] for item in grid]
-    start = grid[np.argmax(lnlike_grid)]
-    print(start)
-    print(galaxy.Galaxy, ": starting rho0, sigma0, cross, ml_disk, ml_bulge = ", ss.unpack(start), "min chisq/dof",
-          np.max(lnlike_grid) * (-2) / (len(galaxy.Data.R) - 3))
-    return start, std
+    boundary_offsets = [0.1 * (bound[1] - bound[0]) for bound in bounds]
+    # hard code in no offset for cross section
+    boundary_offsets[2] = 1e-6
+
+    start_grid = [np.linspace(bound[0] + boundary_offset, bound[1] - boundary_offset, num_to_sample)
+                  for bound, boundary_offset, num_to_sample
+                  in zip(bounds, boundary_offsets, number_grid_points_per_param)]
+
+    # explode to all possible combinations of starting params
+    possible_start_combinations_0 = [row.flatten() for row in np.meshgrid(*start_grid)]
+    possible_start_combinations = list(zip(*possible_start_combinations_0))
+    possible_start_combinations_physical_space = [
+        convert_to_physical_parameter_space(parameter_space_point)
+        for parameter_space_point in possible_start_combinations
+    ]
+    # TODO: refactor the lnlike function to take specific parameters and add those as parameters to this function
+    lnlike_grid = [
+        lnlike(parameter_space_point, galaxy)[0]
+        for parameter_space_point in possible_start_combinations_physical_space
+    ]
+    start_point = possible_start_combinations_physical_space[np.argmax(np.array(lnlike_grid))]
+
+    # random draw to start slightly away (5% of bounds range) from each start point
+    start_point_radii = [0.05 * (bound[1]-bound[0]) for bound in bounds]
+
+    return start_point, start_point_radii
+
+
+def generate_nwalkers_start_points(
+        nwalkers,
+        start_point,
+        start_point_radii
+):
+    radii = np.array([[np.random.uniform(low=-start_point_radius, high=start_point_radius) for start_point_radius in start_point_radii]
+        for i in range(nwalkers)])
+    start_points = np.array(start_point) + radii
+
+    return start_points
+
+
 
 class sidm_setup:
 
@@ -195,21 +220,26 @@ def abundance_match_behroozi_2012(Mhalo, z=0, alpha=None):
     return 10 ** log10Mstar
 
 
-def lnlike(params, args):
-    rho0, sigma0, cross, ml_disk, ml_bulge = params
-    galaxy, ss, mn, emcee_params, prior_params, reg_params, bounds = args
-    ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
-    rmax_prior, rmax100, slope, log10rmax_spread, \
-    log10c200_spread, tophat_prior, half_width, \
-    ml_median, log10ml_spread, bulge_prior, bulge_prior_width = prior_params
-    abs_e_V, rel_e_V, vmax_prior, ratio_vmax_prior = reg_params
+def lnlike(
+        params_physical_space,
+        galaxy,
+):
+    rho0, sigma0, cross, ml_disk = params_physical_space
+    #galaxy, sidm_setup, mn, emcee_params, prior_params, reg_params, bounds = args
+    # ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
 
-    v_b = np.sqrt(ml_bulge) * galaxy.Data.Bulge
-    v_d = np.sqrt(ml_disk) * galaxy.Data.Disk
-    v2_baryons = galaxy.Data.Gas ** 2 + v_d ** 2 + v_b ** 2
-    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / ss.GNewton)))
-    r0 = 3 * sigma0 / np.sqrt(ss.fourpi * ss.GNewton * rho0)
+    ml_median = galaxy.prior_params['ml_median']
+    log10_rmax_spread = galaxy.prior_params['log10_rmax_spread']
+    log10_c200_spread = galaxy.prior_params['log10_c200_spread']
+
+    abs_e_V, rel_e_V, vmax_prior, ratio_vmax_prior = galaxy.regularization_params
+    v_d = np.sqrt(ml_disk) * galaxy.v_stellar
+
+    v2_baryons = galaxy.v_gas ** 2 + v_d ** 2
+    lines = np.array(list(zip(galaxy.radii, v2_baryons * galaxy.radii / GNEWTON)))
+    r0 = 3. * sigma0 / np.sqrt(4.* np.pi * GNEWTON * rho0)
     mnorm = rho0 * r0 ** 3
+
     interp_m = InterpolatedUnivariateSpline(lines[:, 0] / r0, lines[:, 1] / mnorm, k=2)
     rm = lines[0, 0] / r0
     rmm = lines[-1, 0] / r0
@@ -223,16 +253,19 @@ def lnlike(params, args):
             m = interp_m(rmm)
         return m
 
-    r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = get_dens_mass(rho0, sigma0,
-                                                                                                          cross, r0,
-                                                                                                          mnorm, massB,
-                                                                                                          args)
+    nfw_matcher = NFWMatcher()
+
+    r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
+        get_dens_mass(rho0, sigma0,
+                      cross, r0,
+                      mnorm, massB,
+                      galaxy, nfw_matcher)
     v2_dm = []
-    for r, m in zip(galaxy.Data.R, mass):
+    for r, m in zip(galaxy.radii, mass):
         if r > r1:
-            vd2 = ss.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
+            vd2 = GNEWTON * nfw_matcher.nfw_m_profile(r / rs) * mnfw0 / r
         else:
-            vd2 = ss.GNewton * m / r
+            vd2 = GNEWTON * m / r
         v2_dm = np.append(v2_dm, vd2)
     v_m = np.sqrt(v2_dm + v2_baryons)
     if not np.all([np.isfinite(item) for item in v_m]):
@@ -245,10 +278,13 @@ def lnlike(params, args):
     err_V_sqr = galaxy.Data.e_V ** 2 + abs_e_V**2 + (rel_e_V * galaxy.Data.V) ** 2
     chisq_reg = np.sum( (galaxy.Data.V - v_m) ** 2 / err_V_sqr )
     '''
-    chisq = chisq_2d(v_m, tilted_ring_model)
 
+    # TODO: probably have to interpolate radii and rotation here to make the 2d modeled field
+    chisq = chisq_2d(galaxy, galaxy.radii, v_m)
+    """
+    
     if rmax_prior:
-        chisq_cosmo = (np.log10(rmax100 * (vmax / 100) ** slope / rmax) / log10rmax_spread) ** 2
+        chisq_cosmo = (np.log10(rmax100 * (vmax / 100) ** slope / rmax) / log10_rmax_spread) ** 2
     else:
         lgrhos = np.log(rhos)
         if lgrhos > mn._logrhos[-1]:
@@ -259,7 +295,7 @@ def lnlike(params, args):
             else:
                 c200 = mn._getc(lgrhos)
         m200 = mnfw0 * mn.nfw_m_profile(c200)
-        chisq_cosmo = (np.log10(c200 / mn.dutton_c200(m200)) / log10c200_spread) ** 2
+        chisq_cosmo = (np.log10(c200 / mn.dutton_c200(m200)) / log10_c200_spread) ** 2
 
     if tophat_prior:
         chisq_cosmo = tophat(chisq_cosmo / half_width ** 2)
@@ -268,166 +304,70 @@ def lnlike(params, args):
         chisq_cosmo += tophat(np.log(vmax / galaxy.Vflat) / np.log(ratio_vmax_prior))
 
     ml0 = abundance_match_behroozi_2012(mvir) / (galaxy.Lum * 1e9) if ml_median < 0 else ml_median
-    chisq_ml = (np.log10(ml_disk / ml0) / log10ml_spread) ** 2
-    if ml_median < 0: chisq_ml = tophat(chisq_ml)
-
-    if bulge_prior:
-        chisq_ml += -2 * np.log((np.tanh((ml_bulge - ml_disk) / bulge_prior_width) + 1) / 2)
-
-    return -0.5 * (chisq_reg + chisq_cosmo + chisq_ml), \
+    #chisq_ml = (np.log10(ml_disk / ml0) / log10ml_spread) ** 2
+    #if ml_median < 0: chisq_ml = tophat(chisq_ml)
+    """
+    return -0.5 * (chisq ), \
            (r1, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, chisq, np.sqrt(v2_dm),
-            np.sqrt(v2_baryons), v_b, v_d, v_m)
+            np.sqrt(v2_baryons), v_d, v_m)
 
 
 def lnprior(theta, bounds):
+
     for item, bound in zip(theta, bounds):
         if not bound[0] <= item <= bound[1]:
             return -np.inf
     return 0.0
 
 
-def lnprob(theta, args):
-    __, ss, __, __, __, __, bounds = args
-    lp = lnprior(theta, bounds)
+def lnprob(theta_mcmc_space, galaxy):
+    bounds = np.array(
+        [galaxy.bounds['rho0'],
+         galaxy.bounds['sigma0'],
+         galaxy.bounds['cross_section'],
+         galaxy.bounds['ml'],
+         ])
+    lp = lnprior(theta_mcmc_space, bounds)
     if not np.isfinite(lp):
         return -np.inf, 0
-    params = ss.unpack(theta)
-    lnl, bb = lnlike(params, args)
-    blob = params + bb
+    params_physical_space = convert_to_physical_parameter_space(theta_mcmc_space)
+    lnl, bb = lnlike(params_physical_space, galaxy)
+    blob = params_physical_space + bb
     return lp + lnl, blob
 
 
 
 def chisq_2d(
-        tilted_ring_model,
+        galaxy,
+        radii_model,
         v_rot_1d_model,
         v_err_2d=None,
         v_err_const=2.
 ):
     """
-
     :param v_rot_1d_model:
     :param v_los_2d_data:
     :param v_err_2d: if 2d error field not provided, use v_err_const
     :param v_err_const:
     :return:
     """
-    vlos_2d_data = tilted_ring_model.vlos_2d_data
-    vlos_2d_model = tilted_ring_model.create_2d_velocity_field(
-        tilted_ring_params['radii'],
-        v_rot=rotation_curve
+    try:
+        vlos_2d_data = galaxy.vlos_2d_data
+    except:
+        raise ValueError('Need observed 2d velocity field for galaxy')
+    vlos_2d_model = galaxy.create_2d_velocity_field(
+        radii_model,
+        v_rot=v_rot_1d_model
     )
     if v_err_2d:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / (v_err_2d) ** 2)
+        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
     else:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / (v_err_const) ** 2)
+        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
     return chisq
 
 
 def tophat(x):
     return -2 * np.log( 1 / ( 1 + x**40 ) )
-
-
-def lnlike(params, args):
-    rho0, sigma0, cross, ml_disk, ml_bulge = params
-    galaxy, ss, mn, emcee_params, prior_params, reg_params, bounds = args
-    ndim, nwalkers, nburn, niter, nthin, nthreads = unpack_emcee_params(emcee_params)
-    rmax_prior, rmax100, slope, log10rmax_spread, \
-    log10c200_spread, tophat_prior, half_width, \
-    ml_median, log10ml_spread, bulge_prior, bulge_prior_width = prior_params
-    abs_e_V, rel_e_V, vmax_prior, ratio_vmax_prior = reg_params
-
-    v_b = np.sqrt(ml_bulge) * galaxy.Data.Bulge
-    v_d = np.sqrt(ml_disk) * galaxy.Data.Disk
-    v2_baryons = galaxy.Data.Gas ** 2 + v_d ** 2 + v_b ** 2
-    lines = np.array(list(zip(galaxy.Data.R, v2_baryons * galaxy.Data.R / ss.GNewton)))
-    r0 = 3 * sigma0 / np.sqrt(ss.fourpi * ss.GNewton * rho0)
-    mnorm = rho0 * r0 ** 3
-    interp_m = InterpolatedUnivariateSpline(lines[:, 0] / r0, lines[:, 1] / mnorm, k=2)
-    rm = lines[0, 0] / r0
-    rmm = lines[-1, 0] / r0
-
-    def massB(r):
-        if rm < r < rmm:
-            m = interp_m(r)
-        elif r <= rm:
-            m = interp_m(rm) * (r / rm) ** 3
-        else:
-            m = interp_m(rmm)
-        return m
-
-    r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = get_dens_mass(rho0, sigma0,
-                                                                                                          cross, r0,
-                                                                                                          mnorm, massB,
-                                                                                                          args)
-    v2_dm = []
-    for r, m in zip(galaxy.Data.R, mass):
-        if r > r1:
-            vd2 = ss.GNewton * mn.nfw_m_profile(r / rs) * mnfw0 / r
-        else:
-            vd2 = ss.GNewton * m / r
-        v2_dm = np.append(v2_dm, vd2)
-    v_m = np.sqrt(v2_dm + v2_baryons)
-    if not np.all([np.isfinite(item) for item in v_m]):
-        print('error_5: something went wrong in lnlike for galaxy ' + galaxy.Galaxy)
-        print('rho0, sigma0, r0, r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, v2_dm =', \
-              rho0, sigma0, r0, r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, v2_dm)
-
-    '''
-    chisq = np.sum( (galaxy.Data.V - v_m) ** 2 / galaxy.Data.e_V ** 2 )
-    err_V_sqr = galaxy.Data.e_V ** 2 + abs_e_V**2 + (rel_e_V * galaxy.Data.V) ** 2
-    chisq_reg = np.sum( (galaxy.Data.V - v_m) ** 2 / err_V_sqr )
-    '''
-    chisq = chisq_2d(v_m, tilted_ring_model)
-
-    if rmax_prior:
-        chisq_cosmo = (np.log10(rmax100 * (vmax / 100) ** slope / rmax) / log10rmax_spread) ** 2
-    else:
-        lgrhos = np.log(rhos)
-        if lgrhos > mn._logrhos[-1]:
-            c200 = mn._c[-1] * (lgrhos / mn._logrhos[-1]) ** 11
-        else:
-            if lgrhos < mn._logrhos[0]:
-                c200 = mn._c[0]
-            else:
-                c200 = mn._getc(lgrhos)
-        m200 = mnfw0 * mn.nfw_m_profile(c200)
-        chisq_cosmo = (np.log10(c200 / mn.dutton_c200(m200)) / log10c200_spread) ** 2
-
-    if tophat_prior:
-        chisq_cosmo = tophat(chisq_cosmo / half_width ** 2)
-
-    if vmax_prior:
-        chisq_cosmo += tophat(np.log(vmax / galaxy.Vflat) / np.log(ratio_vmax_prior))
-
-    ml0 = abundance_match_behroozi_2012(mvir) / (galaxy.Lum * 1e9) if ml_median < 0 else ml_median
-    chisq_ml = (np.log10(ml_disk / ml0) / log10ml_spread) ** 2
-    if ml_median < 0: chisq_ml = tophat(chisq_ml)
-
-    if bulge_prior:
-        chisq_ml += -2 * np.log((np.tanh((ml_bulge - ml_disk) / bulge_prior_width) + 1) / 2)
-
-    return -0.5 * (chisq_reg + chisq_cosmo + chisq_ml), \
-           (r1, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, chisq, np.sqrt(v2_dm),
-            np.sqrt(v2_baryons), v_b, v_d, v_m)
-
-
-def lnprior(theta, bounds):
-    for item, bound in zip(theta,bounds):
-        if not bound[0] <= item <= bound[1]:
-            return -np.inf
-    return 0.0
-
-
-def lnprob(theta, args):
-    __, ss, __, __, __, __, bounds = args
-    lp = lnprior(theta, bounds)
-    if not np.isfinite(lp):
-        return -np.inf, 0
-    params = ss.unpack(theta)
-    lnl, bb = lnlike(params, args)
-    blob = params +  bb
-    return lp + lnl, blob
 
 
 def process_it(galaxy, sampler, emcee_params, ss, dt_blobs, fig_dir, std):
@@ -459,7 +399,7 @@ def process_it(galaxy, sampler, emcee_params, ss, dt_blobs, fig_dir, std):
     plt.savefig(fname)
     plt.close(figure)
 
-    x = galaxy.Data.R
+    x = galaxy.radii
     b = np.zeros((len(galaxy.emcee.samples), len(x)))
     np.copyto(b, [item for item in galaxy.emcee.v_dm])
     v_dm_stats = np.array(list(zip(*np.percentile(b, [16, 50, 84], axis=0))))

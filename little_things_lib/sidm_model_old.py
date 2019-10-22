@@ -8,7 +8,7 @@ from matplotlib import rcParams
 from SPARCdata import unpack_emcee_params
 from autocorr import get_autocorr_N
 
-from galaxy_model import GalaxyModel
+from galaxy import Galaxy
 
 class sidm_setup:
     
