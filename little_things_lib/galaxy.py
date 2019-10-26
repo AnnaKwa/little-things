@@ -177,8 +177,8 @@ class Galaxy:
         '''
         inc = self.ring_parameters[r]['inc']
         pos_ang = self.ring_parameters[r]['pos_ang']
-        x_kpc = r * (np.cos(pos_ang) * np.cos(theta) - np.sin(pos_ang) * np.sin(theta) * np.sin(inc))
-        y_kpc = r * (np.sin(pos_ang) * np.cos(theta) + np.cos(pos_ang) * np.sin(theta) * np.sin(inc))
+        x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
+        y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
         y_pix = y_kpc / self.kpc_per_pixel
         return (x_pix, y_pix)
