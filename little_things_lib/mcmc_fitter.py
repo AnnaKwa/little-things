@@ -1,7 +1,9 @@
 from .constants import GNEWTON
 from .dm_halo_model import (
     NFWMatcher,
-    get_dens_mass)
+    get_dens_mass,
+    get_dens_mass_without_baryon_effect)
+from .helpers import auto_assign
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
@@ -123,12 +125,15 @@ def lnlike(
         return m
 
     nfw_matcher = NFWMatcher()
-
-    r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
-        get_dens_mass(rho0, sigma0,
-                      cross, r0,
-                      mnorm, massB,
-                      galaxy, nfw_matcher)
+    if cross > 1e-3:
+        r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
+            get_dens_mass(rho0, sigma0,
+                          cross, r0,
+                          mnorm, massB,
+                          galaxy, nfw_matcher)
+    else:
+        r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
+            get_dens_mass_without_baryon_effect(rho0, sigma0, cross, r0, mnorm, galaxy, nfw_matcher)
     v2_dm = []
     for r, m in zip(galaxy.radii, mass):
         if r > r1:

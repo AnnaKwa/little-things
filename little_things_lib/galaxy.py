@@ -145,7 +145,10 @@ class Galaxy:
                 x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
                 if (self.image_xdim - 1 > x > 0 and y < self.image_ydim-1 and y>0):
                     arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
-                    v_field[arr_y][arr_x] = v_los
+                    try:
+                        v_field[arr_y][arr_x] = v_los
+                    except:
+                        print (arr_x, arr_y, v_los)
         return v_field
 
     def _calc_v_los_at_r_theta(
