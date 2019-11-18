@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.interpolate import interp1d
-from .helpers import calc_physical_distance_per_pixel
+from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius
 
 SEC_PER_GYR = 3.15576e+16
 
@@ -85,12 +85,26 @@ class Galaxy:
         :param gas_rotation_curve_velocities: [km/s]
         :return:
         """
+
+        rotation_curve_radii, rotation_curve_velocities = np.array([
+            (r, v) for r, v in zip(rotation_curve_radii, rotation_curve_velocities)
+                if (np.min(self.radii)<= r <= np.max(self.radii))
+        ]).T
         interp_rotation = interp1d(rotation_curve_radii, rotation_curve_velocities)
-        v_interp = interp_rotation(self.radii)
+        interp_radii = [
+            r for r in self.radii
+            if (np.min(rotation_curve_radii) <= r <= np.max(rotation_curve_radii))
+        ]
+        v_interp = list(interp_rotation(interp_radii))
+        extrap_inside_radii = [r for r in self.radii if r < np.min(rotation_curve_radii)]
+        extrap_outside_radii = [r for r in self.radii if r > np.max(rotation_curve_radii)]
+        v_extrap_inside = [np.min(rotation_curve_velocities) for r in extrap_inside_radii]
+        r_last, v_last = rotation_curve_radii[-1], rotation_curve_velocities[-1]
+        v_extrap_outside = [extrapolate_v_outside_last_radius(r, r_last, v_last) for r in extrap_outside_radii]
         if baryon_type == 'gas':
-            self.v_gas = v_interp
+            self.v_gas = np.array(v_extrap_inside + v_interp + v_extrap_outside)
         else:
-            self.v_stellar = v_interp
+            self.v_stellar = np.array(v_extrap_inside + v_interp + v_extrap_outside)
 
     def set_tilted_ring_parameters(
             self,
@@ -180,8 +194,8 @@ class Galaxy:
         '''
         inc = self.ring_parameters[r]['inc']
         pos_ang = self.ring_parameters[r]['pos_ang']
-        x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
-        y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
+        x_kpc = r * (np.sin(2*pos_ang) * np.sin(theta) - np.cos(2*pos_ang) * np.cos(theta) * np.cos(inc))
+        y_kpc = r * (np.cos(2*pos_ang) * np.sin(theta) + np.sin(2*pos_ang) * np.cos(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
         y_pix = y_kpc / self.kpc_per_pixel
         return (x_pix, y_pix)

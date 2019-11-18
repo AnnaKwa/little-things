@@ -2,12 +2,18 @@ import numpy as np
 import functools
 from inspect import signature, Parameter
 
+from .constants import GNEWTON
 RADIANS_PER_DEG = np.pi / 180.
 
 
-
-
-
+def extrapolate_v_outside_last_radius(
+        r,
+        r_last,
+        v_last
+):
+    M_enclosed = v_last**2 * r_last / GNEWTON
+    v = np.sqrt(GNEWTON * M_enclosed / r)
+    return v
 
 def calc_physical_distance_per_pixel(
         distance_to_galaxy,
