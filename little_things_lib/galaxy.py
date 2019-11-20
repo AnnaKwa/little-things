@@ -42,7 +42,7 @@ class Galaxy:
             rmax_prior=False,
             vmax_prior=False,
             log10_rmax_spread=0.11,
-            log10_c200_spread = 0.11,
+            log10_c200_spread=0.11,
             abs_err_vel_factor=0.05,
             tophat_width=3.
     ):

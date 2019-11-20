@@ -6,6 +6,9 @@ from .constants import GNEWTON
 RADIANS_PER_DEG = np.pi / 180.
 
 
+#def plot_posterior(sampler, index=None):
+    
+
 def extrapolate_v_outside_last_radius(
         r,
         r_last,
