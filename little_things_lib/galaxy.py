@@ -1,3 +1,4 @@
+from missingpy import KNNImputer
 import numpy as np
 from scipy.interpolate import interp1d
 from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius
@@ -32,7 +33,21 @@ class Galaxy:
         self.image_xdim, self.image_ydim = image_xdim, image_ydim
 
 
-    def set_prior_bounds(
+    def set_nfw_prior_bounds(
+            self,
+            rs_bounds=(0.5, 8.0),
+            rhos_bounds=(10, 1e3),  # solar masses / pc^3
+            ml_bounds=(0.1, 10)
+    ):
+        bounds = {
+            'rhos': tuple(np.log10(rhos_bounds)),
+            'rs': tuple(np.log10(rs_bounds)),
+            'ml': ml_bounds
+        }
+        self.bounds = bounds
+
+
+    def set_sidm_prior_bounds(
             self,
             cross_section_bounds=(2.999, 3.001),
             rate_bounds=(2, 1e4),
@@ -106,6 +121,7 @@ class Galaxy:
         else:
             self.v_stellar = np.array(v_extrap_inside + v_interp + v_extrap_outside)
 
+
     def set_tilted_ring_parameters(
             self,
             v_systemic,
@@ -138,11 +154,18 @@ class Galaxy:
             for radius, inc, pos_ang, x, y
                 in zip(radii, inclination, position_angle, x_pix_center, y_pix_center)
         }
+        self.interp_ring_parameters = {
+            'inc': interp1d(radii, inclination),
+            'pos_ang': interp1d(radii, position_angle),
+            'x_center': interp1d(radii, x_pix_center),
+            'y_center': interp1d(radii, y_pix_center)
+        }
 
     def create_2d_velocity_field(
             self,
             radii,
-            v_rot
+            v_rot,
+            n_interp=200
     ):
         '''
         uses tilted ring model parameters to calculate velocity field
@@ -154,8 +177,11 @@ class Galaxy:
         returns 2d velocity field array
         '''
         v_field = np.zeros(shape=(self.image_ydim, self.image_xdim))
-        for r, v in zip(radii, v_rot):
-            for theta in np.linspace(0, 2.*np.pi, 1000):
+        v_rot_interp = interp1d(radii, v_rot)
+        radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp)
+        for r in radii_interp:
+            v = v_rot_interp(r)
+            for theta in np.linspace(0, 2.*np.pi, 800):
                 x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
                 if (self.image_xdim - 1 > x > 0 and y < self.image_ydim-1 and y>0):
                     arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
@@ -163,6 +189,10 @@ class Galaxy:
                         v_field[arr_y][arr_x] = v_los
                     except:
                         print (arr_x, arr_y, v_los)
+
+        imputer = KNNImputer(n_neighbors=2, weights="uniform")
+        v_field[v_field == 0] = np.nan
+        v_field = imputer.fit_transform(v_field)
         return v_field
 
     def _calc_v_los_at_r_theta(
@@ -171,9 +201,14 @@ class Galaxy:
             r,
             theta
     ):
-        inc = self.ring_parameters[r]['inc']
-        x0 = self.ring_parameters[r]['x_center']
-        y0 = self.ring_parameters[r]['y_center']
+        #inc = self.ring_parameters[r]['inc']
+        #x0 = self.ring_parameters[r]['x_center']
+        #y0 = self.ring_parameters[r]['y_center']
+
+        inc = self.interp_ring_parameters['inc'](r)
+        x0 = self.interp_ring_parameters['x_center'](r)
+        y0 = self.interp_ring_parameters['y_center'](r)
+
         x_from_galaxy_center, y_from_galaxy_center = self._convert_galaxy_to_observer_coords(r, theta)
         v_los = v_rot * np.cos(theta) * np.sin(inc) - self.v_systemic
         x = x0 + x_from_galaxy_center
@@ -192,8 +227,10 @@ class Galaxy:
         :param theta: azimuthal measured CCW from major axis in plane of disk
         :return: x, y coords in observer frame after applying inc and position angle adjustment
         '''
-        inc = self.ring_parameters[r]['inc']
-        pos_ang = self.ring_parameters[r]['pos_ang']
+        #inc = self.ring_parameters[r]['inc']
+        #pos_ang = self.ring_parameters[r]['pos_ang']
+        inc = self.interp_ring_parameters['inc'](r)
+        pos_ang = self.interp_ring_parameters['pos_ang'](r)
         x_kpc = r * (np.sin(2*pos_ang) * np.sin(theta) - np.cos(2*pos_ang) * np.cos(theta) * np.cos(inc))
         y_kpc = r * (np.cos(2*pos_ang) * np.sin(theta) + np.sin(2*pos_ang) * np.cos(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel

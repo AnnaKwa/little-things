@@ -49,7 +49,7 @@ def fsidm(y, x, massB): # for scipy.integrate.odeint
     return [drhodr, dmassdr]
 
 
-def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
+def get_dens_mass_sidm(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
     mn = nfw_matcher
 
     x0 = 0.1*galaxy.radii[0]/r0

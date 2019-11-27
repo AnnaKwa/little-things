@@ -22,7 +22,8 @@ def plot_walker_paths(
 ):
 
     steps = np.arange(mcmc_params.niter)+1
-    fig = plt.figure(figsize=(4,16))
+    fig, ax = plt.subplots(len(labels), sharex = True, figsize=(10,5*len(labels)))
+
     for i,iplot in zip(range(4),range(len(labels))):
         for j in range(mcmc_params.nwalkers):
             ax[iplot].plot(steps,sampler.chain[j,:,i])
