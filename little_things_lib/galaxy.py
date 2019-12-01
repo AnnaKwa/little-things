@@ -103,7 +103,7 @@ class Galaxy:
 
         rotation_curve_radii, rotation_curve_velocities = np.array([
             (r, v) for r, v in zip(rotation_curve_radii, rotation_curve_velocities)
-                if (np.min(self.radii)<= r <= np.max(self.radii))
+                if (np.min(self.radii) <= r <= np.max(self.radii))
         ]).T
         interp_rotation = interp1d(rotation_curve_radii, rotation_curve_velocities)
         interp_radii = [
@@ -165,7 +165,7 @@ class Galaxy:
             self,
             radii,
             v_rot,
-            n_interp=200
+            n_interp=75
     ):
         '''
         uses tilted ring model parameters to calculate velocity field
@@ -191,9 +191,11 @@ class Galaxy:
                         print (arr_x, arr_y, v_los)
 
         imputer = KNNImputer(n_neighbors=2, weights="uniform")
-        v_field[v_field == 0] = np.nan
         v_field = imputer.fit_transform(v_field)
+        v_field[v_field == 0] = np.nan
+
         return v_field
+
 
     def _calc_v_los_at_r_theta(
             self,
