@@ -202,8 +202,8 @@ def chisq_2d(
         v_rot=v_rot_1d_model
     )
     if v_err_2d:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
+        chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
     else:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
+        chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
     return chisq
 
