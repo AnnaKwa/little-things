@@ -65,16 +65,16 @@ def get_mcmc_start_position(
         for parameter_space_point in possible_start_combinations_physical_space
     ]
     start_point = possible_start_combinations_physical_space[np.argmax(np.array(lnlike_grid))]
-
     # random draw to start slightly away (5% of bounds range) from each start point
     start_point_radii = [0.05 * (bound[1]-bound[0]) for bound in bounds]
-
-    return start_point, start_point_radii
+    start_point_mcmc_space = (np.log10(start_point[0]), np.log10(start_point[1]), start_point[2])
+    return start_point_mcmc_space, start_point_radii
 
 
 
 
 def generate_nwalkers_start_points(
+        galaxy,
         nwalkers,
         start_point,
         start_point_radii
@@ -82,7 +82,13 @@ def generate_nwalkers_start_points(
     radii = np.array([[np.random.uniform(low=-start_point_radius, high=start_point_radius) for start_point_radius in start_point_radii]
         for i in range(nwalkers)])
     start_points = np.array(start_point) + radii
-
+    for point in start_points:
+        if point[0] < galaxy.bounds['rhos'][0] or point[0] > galaxy.bounds['rhos'][1]:
+            print(f"Start point {point[0]} for log10(rhos) is outside prior bounds {galaxy.bounds['rhos']}")
+        if point[1] < galaxy.bounds['rs'][0] or point[1] > galaxy.bounds['rs'][1]:
+            print(f"Start point {point[1]} for log10(rs) is outside prior bounds {galaxy.bounds['rs']}")
+        if point[2] < galaxy.bounds['ml'][0] or point[2] > galaxy.bounds['ml'][1]:
+            print(f"Start point {point[2]} for M/L is outside prior bounds {galaxy.bounds['ml']}")
     return start_points
 
 
