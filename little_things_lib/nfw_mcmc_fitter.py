@@ -28,7 +28,6 @@ def convert_to_mcmc_parameter_space(physical_space_parameters):
     return np.log10(theta_physical[0]), np.log10(theta_physical[1]), theta_physical[2]
 
 
-
 def get_mcmc_start_position(
         galaxy,
         number_grid_points_per_param=None
@@ -113,14 +112,14 @@ def lnlike(
         print('rhos, rs, v2_dm =',  rhos, rs, v2_dm)
 
     # TODO: probably have to interpolate radii and rotation here to make the 2d modeled field
-    chisq = chisq_2d(galaxy, galaxy.radii, v_m)
+    chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, record_array=True)
 
     return -0.5 * (chisq ), \
-           (rhos, rs, chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons), v_d, v_m, dm_mass_enclosed)
+           (rhos, rs, chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons),
+            v_d, v_m, dm_mass_enclosed, model_2d_field)
 
 
 def lnprior(theta, bounds):
-
     for item, bound in zip(theta, bounds):
         if not bound[0] <= item <= bound[1]:
             return -np.inf
@@ -147,7 +146,8 @@ def chisq_2d(
         radii_model,
         v_rot_1d_model,
         v_err_2d=None,
-        v_err_const=2.
+        v_err_const=2.,
+        record_array=False
 ):
     """
     :param v_rot_1d_model:
@@ -168,5 +168,8 @@ def chisq_2d(
         chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
     else:
         chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
-    return chisq
+    if record_array:
+        return chisq, vlos_2d_model
+    else:
+        return chisq, None
 

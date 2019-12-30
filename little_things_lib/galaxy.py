@@ -146,8 +146,8 @@ class Galaxy:
         self.v_systemic = v_systemic
         self.ring_parameters = {
             radius: {
-                'inc': inc * (np.pi/360),
-                'pos_ang': pos_ang * (np.pi/360),
+                'inc': inc * (np.pi/180),
+                'pos_ang': pos_ang * (np.pi/180),
                 'x_center': x,
                 'y_center': y
             }
@@ -155,8 +155,8 @@ class Galaxy:
                 in zip(radii, inclination, position_angle, x_pix_center, y_pix_center)
         }
         self.interp_ring_parameters = {
-            'inc': interp1d(radii, inclination),
-            'pos_ang': interp1d(radii, position_angle),
+            'inc': interp1d(radii, inclination * np.pi/180),
+            'pos_ang': interp1d(radii, position_angle * np.pi/180),
             'x_center': interp1d(radii, x_pix_center),
             'y_center': interp1d(radii, y_pix_center)
         }
@@ -193,7 +193,8 @@ class Galaxy:
         imputer = KNNImputer(n_neighbors=2, weights="uniform")
         v_field = imputer.fit_transform(v_field)
         v_field[v_field == 0] = np.nan
-
+        # rotate to match the fits data field
+        v_field = np.rot90(v_field, 3)
         return v_field
 
 
@@ -233,8 +234,8 @@ class Galaxy:
         #pos_ang = self.ring_parameters[r]['pos_ang']
         inc = self.interp_ring_parameters['inc'](r)
         pos_ang = self.interp_ring_parameters['pos_ang'](r)
-        x_kpc = r * (np.sin(2*pos_ang) * np.sin(theta) - np.cos(2*pos_ang) * np.cos(theta) * np.cos(inc))
-        y_kpc = r * (np.cos(2*pos_ang) * np.sin(theta) + np.sin(2*pos_ang) * np.cos(theta) * np.cos(inc))
+        x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
+        y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
         y_pix = y_kpc / self.kpc_per_pixel
         return (x_pix, y_pix)
