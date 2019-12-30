@@ -155,8 +155,8 @@ class Galaxy:
                 in zip(radii, inclination, position_angle, x_pix_center, y_pix_center)
         }
         self.interp_ring_parameters = {
-            'inc': interp1d(radii, inclination * np.pi/180),
-            'pos_ang': interp1d(radii, position_angle * np.pi/180),
+            'inc': interp1d(radii, np.array(inclination) * np.pi/180),
+            'pos_ang': interp1d(radii, np.array(position_angle) * np.pi/180),
             'x_center': interp1d(radii, x_pix_center),
             'y_center': interp1d(radii, y_pix_center)
         }
@@ -234,8 +234,11 @@ class Galaxy:
         #pos_ang = self.ring_parameters[r]['pos_ang']
         inc = self.interp_ring_parameters['inc'](r)
         pos_ang = self.interp_ring_parameters['pos_ang'](r)
-        x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
-        y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
+        #x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
+        #y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
+        x_kpc = r * (np.cos(pos_ang) * np.cos(theta) - np.sin(pos_ang) * np.sin(
+            theta) * np.cos(inc))
+        y_kpc = r * (np.sin(pos_ang) * np.cos(theta) - np.cos(pos_ang) * np.sin(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
         y_pix = y_kpc / self.kpc_per_pixel
         return (x_pix, y_pix)
