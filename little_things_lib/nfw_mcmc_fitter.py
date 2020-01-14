@@ -133,9 +133,9 @@ def lnprob(theta_mcmc_space, galaxy):
          galaxy.bounds['ml'],
          ])
     lp = lnprior(theta_mcmc_space, bounds)
-    if not np.isfinite(lp):
-        return -np.inf, 0
     params_physical_space = convert_to_physical_parameter_space(theta_mcmc_space)
+    if not np.isfinite(lp):
+        return -np.inf ,0
     lnl, bb = lnlike(params_physical_space, galaxy)
     blob = params_physical_space + bb
     return lp + lnl, blob
