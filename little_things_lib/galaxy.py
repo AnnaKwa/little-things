@@ -1,6 +1,8 @@
 from missingpy import KNNImputer
 import numpy as np
 from scipy.interpolate import interp1d
+import warnings
+
 from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius
 
 SEC_PER_GYR = 3.15576e+16
@@ -10,8 +12,6 @@ class Galaxy:
             self,
             distance_to_galaxy,
             deg_per_pixel,
-            image_xdim,
-            image_ydim,
             galaxy_name=None,
             vlos_2d_data=None,
             output_dir='output',
@@ -30,8 +30,7 @@ class Galaxy:
         # TODO: write func to automatically read deg/pix and dim from fits header and remove these args
         self.deg_per_pixel = deg_per_pixel
         self.kpc_per_pixel = calc_physical_distance_per_pixel(distance_to_galaxy, self.deg_per_pixel)
-        self.image_xdim, self.image_ydim = image_xdim, image_ydim
-
+        self.image_xdim, self.image_ydim = vlos_2d_data.shape
 
     def set_nfw_prior_bounds(
             self,
@@ -142,6 +141,7 @@ class Galaxy:
             y_pix_center [pixel]
 
         '''
+        self._check_center_pixels(x_pix_center, y_pix_center)
         self.radii = radii
         self.v_systemic = v_systemic
         self.ring_parameters = {
@@ -160,6 +160,22 @@ class Galaxy:
             'x_center': interp1d(radii, x_pix_center),
             'y_center': interp1d(radii, y_pix_center)
         }
+
+    def _check_center_pixels(self, x_pix_center, y_pix_center):
+        for xc, yc in zip(x_pix_center, y_pix_center):
+            if xc > self.image_xdim or yc > self.image_ydim:
+                raise ValueError("X, Y center pixel values lie outside the image "
+                                 "dimensions. Check that they are within this range.")
+            if (0.25 > abs(1. * xc / self.image_xdim) ) \
+                    or (abs(1. * xc / self.image_xdim) > 0.75) \
+                    or (0.25 > abs(1. * yc / self.image_ydim) ) \
+                    or (abs(1. * yc / self.image_ydim) > 0.75):
+                warnings.warn(f"x, y  center pixel values {xc},{yc} provided are "
+                              f"not close to center of image dimensions "
+                              f"{self.image_xdim},{self.image_xdim}. "
+                              f"Is this intended?")
+
+
 
     def create_2d_velocity_field(
             self,
