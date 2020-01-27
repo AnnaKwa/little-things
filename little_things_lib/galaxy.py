@@ -229,7 +229,7 @@ class Galaxy:
         y0 = self.interp_ring_parameters['y_center'](r)
 
         x_from_galaxy_center, y_from_galaxy_center = self._convert_galaxy_to_observer_coords(r, theta)
-        v_los = v_rot * np.cos(theta) * np.sin(inc) - self.v_systemic
+        v_los = v_rot * np.cos(theta) * np.sin(inc) + self.v_systemic
         x = x0 + x_from_galaxy_center
         y = y0 + y_from_galaxy_center
         return (x, y, v_los)
