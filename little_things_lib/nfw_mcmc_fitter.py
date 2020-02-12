@@ -115,7 +115,7 @@ def lnlike(
     chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, record_array=True)
 
     return -0.5 * (chisq ), \
-           (rhos, rs, chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons),
+           (chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons),
             v_d, v_m, dm_mass_enclosed, model_2d_field)
 
 
