@@ -12,12 +12,13 @@ class NFWMatcher:
         self.x_iso_min, self.x_iso_max = 1e-4, 1e2
         self._x_iso = np.logspace(np.log10(self.x_iso_min), np.log10(self.x_iso_max), 100)
         self._y_iso_0 = np.array([1.0, (4.0 * np.pi / 3.0) * self.x_iso_min ** 3])
-        self._y_iso = odeint(self.fsidm_no_b, self._y_iso_0, self._x_iso)
-        self.density_iso_no_b = InterpolatedUnivariateSpline(self._x_iso, self._y_iso[:, 0])
-        self.mass_iso_no_b = InterpolatedUnivariateSpline(self._x_iso, self._y_iso[:, 1])
+        self.y_iso = odeint(self.fsidm_no_b, self._y_iso_0, self._x_iso)
+        self.density_iso_no_b = InterpolatedUnivariateSpline(self._x_iso, self.y_iso[:, 0])
+
+        self.mass_iso_no_b = InterpolatedUnivariateSpline(self._x_iso, self.y_iso[:, 1])
         self._x = np.logspace(-4, 4, num=100)
-        self._y = list(map((lambda x: self.nfw_m_profile(x) * (1 + 1 / x) ** 2), self._x))
-        self.r1_over_rs = InterpolatedUnivariateSpline(self._y, self._x)
+        self.y = list(map((lambda x: self.nfw_m_profile(x) * (1 + 1 / x) ** 2), self._x))
+        self.r1_over_rs = InterpolatedUnivariateSpline(self.y, self._x)
 
         self._h0 = 0.671
         self._rhocrit = 277.2 * self._h0 ** 2
@@ -48,7 +49,7 @@ def fsidm(y, x, massB): # for scipy.integrate.odeint
     return [drhodr, dmassdr]
 
 
-def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
+def get_dens_mass_sidm(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
     mn = nfw_matcher
 
     x0 = 0.1*galaxy.radii[0]/r0
@@ -125,44 +126,45 @@ def get_dens_mass(rho0, sigma0, cross, r0, mnorm, massB, galaxy, nfw_matcher):
     return r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, np.delete(y[:,0],0)*rho0, np.delete(y[:,1],0)*mnorm
 
 
-def get_dens_mass_without_baryon_effect(rho0, sigma0, cross, r0, mnorm, args):
-    galaxy, ss, mn, __, __, __, __ = args
-    rho1 = 1.0/(ss.rate_const * cross * sigma0)
-    def rate(x):  return rho0 * mn.density_iso_no_b(x) / rho1
-    if (rate(mn.x_iso_min)-1.0)*(rate(mn.x_iso_max)-1.0) > 0:
-        print("Need to increase mn.x_iso_max; rate(mn.x_iso_max) = ",rate(mn.x_iso_max))
+def get_dens_mass_without_baryon_effect(rho0, sigma0, cross, r0, mnorm, galaxy, nfw_matcher):
+    rho1 = 1.0/(galaxy.rate_constant * cross * sigma0)
+    def rate(x):
+        return rho0 * nfw_matcher.density_iso_no_b(x) / rho1
+    if (rate(nfw_matcher.x_iso_min)-1.0)*(rate(nfw_matcher.x_iso_max)-1.0) > 0:
+        print("Need to increase mn.x_iso_max; rate(mn.x_iso_max) = ", rate(nfw_matcher.x_iso_max))
         print('Setting r1/r0 =  mn.x_iso_max.')
-        r1 = mn.x_iso_max
+        r1 = nfw_matcher.x_iso_max
     else:
-        r1 = brentq((lambda x: rate(x)-1), mn.x_iso_min, mn.x_iso_max, rtol=1e-4)
-    m1 = mn.mass_iso_no_b(r1)
-    mr1 = max(m1/(ss.fourpi * mn.density_iso_no_b(r1) * r1 ** 3), 0.5)
+        r1 = brentq((lambda x: rate(x)-1), nfw_matcher.x_iso_min, nfw_matcher.x_iso_max, rtol=1e-4)
+    m1 = nfw_matcher.mass_iso_no_b(r1)
+    mr1 = max(m1/(4 * np.pi * nfw_matcher.density_iso_no_b(r1) * r1 ** 3), 0.5)
     r1 *= r0
-    rs = r1 / mn.r1_over_rs(mr1)
+    rs = r1 / nfw_matcher.r1_over_rs(mr1)
     m1 *= mnorm
-    mnfw0 = m1 / mn.nfw_m_profile(r1/rs)
+    mnfw0 = m1 / nfw_matcher.nfw_m_profile(r1/rs)
     rmax = 2.163 * rs
-    vmax = np.sqrt(ss.GNewton * mnfw0 * mn.nfw_m_profile(2.163) / rmax )
-    rhos = vmax ** 2 * 2.163 / (ss.GNewton * ss.fourpi * 0.467676 * rs ** 2 )
+    vmax = np.sqrt(GNEWTON * mnfw0 * nfw_matcher.nfw_m_profile(2.163) / rmax )
+    rhos = vmax ** 2 * 2.163 / (GNEWTON * 4 * np.pi * 0.467676 * rs ** 2 )
 
     lgrhos = np.log(rhos)
-    if lgrhos > mn._logrhos_vir[-1]:
-        cvir = mn._c[-1]*(lgrhos/mn._logrhos_vir[-1])**11
+    if lgrhos > nfw_matcher._logrhos_vir[-1]:
+        cvir = nfw_matcher._c[-1]*(lgrhos/nfw_matcher._logrhos_vir[-1])**11
     else:
-        if lgrhos < mn._logrhos_vir[0]:
-            cvir = mn._c[0]
+        if lgrhos < nfw_matcher._logrhos_vir[0]:
+            cvir = nfw_matcher._c[0]
         else:
-            cvir = mn._getcvir(lgrhos)
-    mvir = mnfw0 * mn.nfw_m_profile(cvir)
+            cvir = nfw_matcher._getcvir(lgrhos)
+    mvir = mnfw0 * nfw_matcher.nfw_m_profile(cvir)
     rvir = rs*cvir
     x2 = 0.015*rvir/r0
-    if x2 < mn.x_iso_min:
+    if x2 < nfw_matcher.x_iso_min:
         slope_15pRvir = 0
-    elif x2 > mn.x_iso_max:
+    elif x2 > nfw_matcher.x_iso_max:
         slope_15pRvir = -3
     else:
-        y2 = np.array([density_iso_no_b(x2), mass_iso_no_b(x2)])
-        slope_15pRvir = mn.fsidm_no_b(y2,x2)[0]*(x2/y2[0])
+        y2 = np.array([nfw_matcher.density_iso_no_b(x2), nfw_matcher.mass_iso_no_b(x2)])
+        slope_15pRvir = nfw_matcher.fsidm_no_b(y2,x2)[0]*(x2/y2[0])
 
-    return r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir
+    return r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, \
+            [], nfw_matcher.y
 

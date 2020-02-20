@@ -1,7 +1,9 @@
 from .constants import GNEWTON
-from .dm_halo_model import (
+from .sidm_halo_model import (
     NFWMatcher,
-    get_dens_mass)
+    get_dens_mass_sidm,
+    get_dens_mass_without_baryon_effect)
+from .helpers import auto_assign
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
@@ -123,12 +125,15 @@ def lnlike(
         return m
 
     nfw_matcher = NFWMatcher()
-
-    r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
-        get_dens_mass(rho0, sigma0,
-                      cross, r0,
-                      mnorm, massB,
-                      galaxy, nfw_matcher)
+    if cross > 1e-3:
+        r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
+            get_dens_mass_sidm(rho0, sigma0,
+                               cross, r0,
+                               mnorm, massB,
+                               galaxy, nfw_matcher)
+    else:
+        r1, mnfw0, m1, rho1, rhos, rs, vmax, rmax, mvir, rvir, cvir, slope_15pRvir, rho, mass = \
+            get_dens_mass_without_baryon_effect(rho0, sigma0, cross, r0, mnorm, galaxy, nfw_matcher)
     v2_dm = []
     for r, m in zip(galaxy.radii, mass):
         if r > r1:
@@ -197,8 +202,8 @@ def chisq_2d(
         v_rot=v_rot_1d_model
     )
     if v_err_2d:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
+        chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_2d ** 2)
     else:
-        chisq = np.sum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
+        chisq = np.nansum((vlos_2d_data - vlos_2d_model) ** 2 / v_err_const ** 2)
     return chisq
 
