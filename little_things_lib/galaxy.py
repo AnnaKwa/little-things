@@ -250,9 +250,8 @@ class Galaxy:
         #pos_ang = self.ring_parameters[r]['pos_ang']
         inc = self.interp_ring_parameters['inc'](r)
         pos_ang = self.interp_ring_parameters['pos_ang'](r)
-        #x_kpc = r * (np.sin(pos_ang) * np.sin(theta) - np.cos(pos_ang) * np.cos(theta) * np.cos(inc))
-        #y_kpc = r * (np.cos(pos_ang) * np.sin(theta) + np.sin(pos_ang) * np.cos(theta) * np.cos(inc))
-        x_kpc = r * (np.cos(pos_ang) * np.cos(theta) - np.sin(pos_ang) * np.sin(
+
+        x_kpc = -r * (np.cos(pos_ang) * np.cos(theta) + np.sin(pos_ang) * np.sin(
             theta) * np.cos(inc))
         y_kpc = r * (np.sin(pos_ang) * np.cos(theta) - np.cos(pos_ang) * np.sin(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
