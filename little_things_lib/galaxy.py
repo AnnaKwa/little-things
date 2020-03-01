@@ -246,14 +246,11 @@ class Galaxy:
         :param theta: azimuthal measured CCW from major axis in plane of disk
         :return: x, y coords in observer frame after applying inc and position angle adjustment
         '''
-        #inc = self.ring_parameters[r]['inc']
-        #pos_ang = self.ring_parameters[r]['pos_ang']
         inc = self.interp_ring_parameters['inc'](r)
         pos_ang = self.interp_ring_parameters['pos_ang'](r)
-
-        x_kpc = -r * (np.cos(pos_ang) * np.cos(theta) + np.sin(pos_ang) * np.sin(
+        x_kpc = -r * (-np.cos(pos_ang) * np.cos(theta) + np.sin(pos_ang) * np.sin(
             theta) * np.cos(inc))
-        y_kpc = r * (np.sin(pos_ang) * np.cos(theta) - np.cos(pos_ang) * np.sin(theta) * np.cos(inc))
+        y_kpc = r * (np.sin(pos_ang) * np.cos(theta) + np.cos(pos_ang) * np.sin(theta) * np.cos(inc))
         x_pix = x_kpc / self.kpc_per_pixel
         y_pix = y_kpc / self.kpc_per_pixel
         return (x_pix, y_pix)
