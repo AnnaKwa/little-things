@@ -121,6 +121,12 @@ class Galaxy:
             self.v_stellar = np.array(v_extrap_inside + v_interp + v_extrap_outside)
 
 
+    def convert_fits_to_array_coords(self, fits_x, fits_y):
+        array_x = fits_y
+        array_y = self.image_xdim - fits_x
+        return array_x, array_y
+
+
     def set_tilted_ring_parameters(
             self,
             v_systemic,
@@ -142,6 +148,9 @@ class Galaxy:
 
         '''
         self._check_center_pixels(x_pix_center, y_pix_center)
+        arr_coord_x, arr_coord_y = self.convert_fits_to_array_coords(
+            np.array(x_pix_center), np.array(y_pix_center))
+
         self.radii = radii
         self.v_systemic = v_systemic
         self.ring_parameters = {
@@ -152,13 +161,13 @@ class Galaxy:
                 'y_center': y
             }
             for radius, inc, pos_ang, x, y
-                in zip(radii, inclination, position_angle, x_pix_center, y_pix_center)
+                in zip(radii, inclination, position_angle, arr_coord_x, arr_coord_y)
         }
         self.interp_ring_parameters = {
             'inc': interp1d(radii, np.array(inclination) * np.pi/180),
             'pos_ang': interp1d(radii, np.array(position_angle) * np.pi/180),
-            'x_center': interp1d(radii, x_pix_center),
-            'y_center': interp1d(radii, y_pix_center)
+            'x_center': interp1d(radii, arr_coord_x),
+            'y_center': interp1d(radii, arr_coord_y)
         }
 
     def _check_center_pixels(self, x_pix_center, y_pix_center):
@@ -232,13 +241,14 @@ class Galaxy:
         v_los = v_rot * np.cos(theta) * np.sin(inc) + self.v_systemic
         x = x0 + x_from_galaxy_center
         y = y0 + y_from_galaxy_center
+
         return (x, y, v_los)
 
 
     def _convert_galaxy_to_observer_coords(
             self,
             r,
-            theta
+            theta,
     ):
         '''
 
