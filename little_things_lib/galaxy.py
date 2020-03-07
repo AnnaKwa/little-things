@@ -122,8 +122,8 @@ class Galaxy:
 
 
     def convert_fits_to_array_coords(self, fits_x, fits_y):
-        array_x = fits_y
-        array_y = self.image_xdim - fits_x
+        array_y = self.image_ydim - fits_x
+        array_x = self.image_xdim - fits_y
         return array_x, array_y
 
 
