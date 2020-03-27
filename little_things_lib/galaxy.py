@@ -17,6 +17,7 @@ class Galaxy:
             output_dir='output',
             luminosity=None,
             HI_mass=None,
+            v_error_2d=10,
             age=10. # Gyr
     ):
         self.galaxy_name = galaxy_name
@@ -24,6 +25,7 @@ class Galaxy:
         self.vlos_2d_data = vlos_2d_data
         self.luminosity = luminosity
         self.HI_mass = HI_mass
+        self.v_error_2d = v_error_2d
 
         self.rate_constant = 1.5278827817856099e-26 * age * SEC_PER_GYR
 

@@ -112,7 +112,7 @@ def lnlike(
         print('rhos, rs, v2_dm =',  rhos, rs, v2_dm)
 
     # TODO: probably have to interpolate radii and rotation here to make the 2d modeled field
-    chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, record_array=True)
+    chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, v_err_const=galaxy.v_error_2d, record_array=True)
 
     return -0.5 * (chisq ), \
            (chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons),
@@ -146,7 +146,7 @@ def chisq_2d(
         radii_model,
         v_rot_1d_model,
         v_err_2d=None,
-        v_err_const=2.,
+        v_err_const=10.,
         record_array=False
 ):
     """
