@@ -15,7 +15,10 @@ class EmceeParameters:
             nthin,
             nthreads
     ):
-        pass
+        if niter % nthin != 0:
+            raise ValueError("niter must be divisible by nthin, try another set"
+                             "of parameters.")
+
 
 
 def convert_to_physical_parameter_space(mcmc_space_parameters):
