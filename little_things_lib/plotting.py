@@ -15,18 +15,17 @@ def plot_posterior_distributions(
         ax.set_xlabel(labels[i])
     plt.show()
 
+
 def plot_walker_paths(
         sampler,
         mcmc_params,
         labels=["log10(rho0)", "log10(sigma0)", "log10(cross)", "ML disk"]
 ):
-
-    steps = np.arange(mcmc_params.niter)+1
     fig, ax = plt.subplots(len(labels), sharex = True, figsize=(10,5*len(labels)))
 
     for i,iplot in zip(range(4),range(len(labels))):
         for j in range(mcmc_params.nwalkers):
-            ax[iplot].plot(steps,sampler.chain[j,:,i])
+            ax[iplot].plot(sampler.chain[j,:,i])
         ax[iplot].set_ylabel(labels[i])
         ax[iplot].set_xlabel('step')
     fig.subplots_adjust(hspace=0)

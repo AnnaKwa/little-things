@@ -15,11 +15,12 @@ class EmceeParameters:
             nthin,
             nthreads
     ):
-        if niter % nthin != 0:
+        pass
+"""        if niter % nthin != 0:
             raise ValueError("niter must be divisible by nthin, try another set"
                              "of parameters.")
 
-
+"""
 
 def convert_to_physical_parameter_space(mcmc_space_parameters):
     theta_mcmc = mcmc_space_parameters
