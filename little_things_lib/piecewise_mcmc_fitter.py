@@ -17,12 +17,15 @@ class EmceeParameters:
         pass
 
 
+
 def generate_nwalkers_start_points(
-        # args
+        nwalkers,
+        radii
 ):
     # placeholder for function that Rohit's working on
+    start_points=np.random.rand(nwalkers,len(radii))*60 #can change 60 to vmax later on
 
-    pass
+    return start_points
 
 
 def lnlike(
@@ -59,7 +62,7 @@ def lnprob(params, galaxy):
     sorted_keys = sorted(list(galaxy.bounds.keys()))
     bounds = np.array(
         [galaxy.bounds[key] for key in sorted_keys])
-    lp = lnprior((params, bounds)
+    lp = lnprior(params, bounds)
     if not np.isfinite(lp):
         return -np.inf ,0
     lnl, bb = lnlike(params_physical_space, galaxy)
