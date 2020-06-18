@@ -59,10 +59,10 @@ def lnprob(params, galaxy):
     sorted_keys = sorted(list(galaxy.bounds.keys()))
     bounds = np.array(
         [galaxy.bounds[key] for key in sorted_keys])
-    lp = lnprior((params, bounds)
+    lp = lnprior(params, bounds)
     if not np.isfinite(lp):
         return -np.inf ,0
-    lnl, bb = lnlike(params_physical_space, galaxy)
+    lnl, bb = lnlike(params, galaxy)
     blob = params + bb
     return lp + lnl, blob
 
