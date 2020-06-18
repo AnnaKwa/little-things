@@ -17,12 +17,15 @@ class EmceeParameters:
         pass
 
 
+
 def generate_nwalkers_start_points(
-        # args
+        nwalkers,
+        radii
 ):
     # placeholder for function that Rohit's working on
+    start_points=np.random.rand(nwalkers,len(radii))*60 #can change 60 to vmax later on
 
-    pass
+    return start_points
 
 
 def lnlike(
