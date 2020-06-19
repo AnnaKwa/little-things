@@ -66,7 +66,7 @@ def lnprob(params, galaxy):
     if not np.isfinite(lp):
         return -np.inf ,0
     lnl, bb = lnlike(params, galaxy)
-    blob = params + bb
+    blob = tuple(params) + bb
     return lp + lnl, blob
 
 
