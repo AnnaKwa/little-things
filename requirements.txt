@@ -28,7 +28,7 @@ gitdb2==2.0.6
 gitpython==3.0.4
 grpcio==1.25.0
 hdfs==2.5.8
-httplib2==0.12.0
+httplib2==0.18.0
 idna==2.8
 imageio==2.6.1
 intake==0.5.3
