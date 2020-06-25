@@ -12,6 +12,8 @@ class Galaxy:
             self,
             distance_to_galaxy,
             deg_per_pixel,
+            bin_edges,
+            radii,
             galaxy_name=None,
             vlos_2d_data=None,
             output_dir='output',
@@ -26,6 +28,8 @@ class Galaxy:
         self.luminosity = luminosity
         self.HI_mass = HI_mass
         self.v_error_2d = v_error_2d
+        self.bin_edges=bin_edges
+        self.radii=radii
 
         self.rate_constant = 1.5278827817856099e-26 * age * SEC_PER_GYR
 

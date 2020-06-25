@@ -16,6 +16,20 @@ class EmceeParameters:
     ):
         pass
 
+def piecewise_constant(
+        r_arr,
+        bin_edges,
+        velocities_at_bin_center
+):
+    vels=[]
+    for value in r_arr:
+        for radius in range(len(bin_edges)):
+            if value<bin_edges[radius]:
+                if radius==0:
+                    vels.append(velocities_at_bin_center[radius])
+                else:
+                    vels.append(velocities_at_bin_center[radius-1])
+    return vels
 
 
 def generate_nwalkers_start_points(
