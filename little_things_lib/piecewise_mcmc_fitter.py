@@ -17,18 +17,24 @@ class EmceeParameters:
         pass
 
 def piecewise_constant(
-        r_arr,
-        bin_edges,
-        velocities_at_bin_center
+        params, #velocity_at_bin_center = params
+        galaxy
 ):
     vels=[]
-    for value in r_arr:
+    velocity_at_bin_center=params['velocity_at_bin_center']
+    r_arr=galaxy.radii
+    bin_edges=galaxy.bin_edges
+    for ring in r_arr:
         for radius in range(len(bin_edges)):
-            if value<bin_edges[radius]:
-                if radius==0:
-                    vels.append(velocities_at_bin_center[radius])
-                else:
-                    vels.append(velocities_at_bin_center[radius-1])
+#            if radius==0:
+#                if ring<bin_edges[radius]:
+                    #check with Anna to get velocities for when out of bounds
+#            if radius==len(bin_edges):
+#                if ring>bin_edges[radius]:
+                    #check with Anna to get velocities for when out of bounds
+            if radius!=0: 
+                if ring<bin_edges[radius] and ring>bin_edges[radius-1]: 
+                    vels.append(velocity_at_bin_center[radius-1])
     return vels
 
 
@@ -46,13 +52,15 @@ def lnlike(
         params,
         galaxy,
 ):
-    v_d = galaxy.v_stellar  # assume M/L = 1 for now
-    v2_baryons = galaxy.v_gas ** 2 + v_d ** 2
+    #v_d = galaxy.v_stellar  # assume M/L = 1 for now
+    #v2_baryons = galaxy.v_gas ** 2 + v_d ** 2
 
-    v2_dm = params**2
+    #v2_dm = params**2
 
-    v_m = np.sqrt(v2_dm + v2_baryons)
-
+    #v_m = np.sqrt(v2_dm + v2_baryons)
+    v_m=piecewise_constant(params,galaxy)
+    assert v_m.shape==galaxy.radii.shape
+    
     if not np.all([np.isfinite(item) for item in v_m]):
         print('error: something went wrong in lnlike for galaxy ')
         print(f'piecewise velocities = {params}')
