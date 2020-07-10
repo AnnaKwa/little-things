@@ -68,9 +68,8 @@ def lnlike(
     # TODO: probably have to interpolate radii and rotation here to make the 2d modeled field
     chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, v_err_const=galaxy.v_error_2d, record_array=True)
 
-    return -0.5 * (chisq ), \
-           (chisq, np.sqrt(v2_dm), np.sqrt(v2_baryons),
-            v_d, v_m, model_2d_field)
+    return -0.5 * (chisq ), 
+           (chisq, v_m, model_2d_field) #must change this return value
 
 
 def lnprior(theta, bounds):
