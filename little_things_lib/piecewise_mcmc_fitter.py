@@ -17,34 +17,34 @@ class EmceeParameters:
         pass
 
 def piecewise_constant(
-        params, #velocity_at_bin_center = params
+        params, #velocity_at_bin_center = params  
         galaxy
 ):
     vels=[]
-    velocity_at_bin_center=params['velocity_at_bin_center']
+    velocity_at_bin_center=params
     r_arr=galaxy.radii
     bin_edges=galaxy.bin_edges
     for ring in r_arr:
         for radius in range(len(bin_edges)):
-#            if radius==0:
-#                if ring<bin_edges[radius]:
-                    #check with Anna to get velocities for when out of bounds
-#            if radius==len(bin_edges):
-#                if ring>bin_edges[radius]:
-                    #check with Anna to get velocities for when out of bounds
             if radius!=0: 
-                if ring<bin_edges[radius] and ring>bin_edges[radius-1]: 
+                if ring<bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than previous bin edge
                     vels.append(velocity_at_bin_center[radius-1])
     return vels
 
 
 def generate_nwalkers_start_points(
         nwalkers,
-        radii
+        galaxy
 ):
-    # placeholder for function that Rohit's working on
-    start_points=np.random.rand(nwalkers,len(radii))*60 #can change 60 to vmax later on
-
+    start_points=[]
+    bin_bounds=list(galaxy.bounds.values())
+    for walker in range(len(galaxy.bin_edges)-1):
+        lis=[]
+        for iteration in range(nwalkers):
+            lis.append(np.random.random()*(bin_bounds[iteration][1]-bin_bounds[iteration][0])+bin_bounds[iteration][0])
+        start_points.append(lis)
+        #start point shifted by bounds. numpy output [0,1) --> multiplied by (max-min) then shifted by min.
+        #each parameter can have individual bounds defined. No need to make all have same bounds.
     return start_points
 
 
@@ -52,14 +52,8 @@ def lnlike(
         params,
         galaxy,
 ):
-    #v_d = galaxy.v_stellar  # assume M/L = 1 for now
-    #v2_baryons = galaxy.v_gas ** 2 + v_d ** 2
-
-    #v2_dm = params**2
-
-    #v_m = np.sqrt(v2_dm + v2_baryons)
     v_m=piecewise_constant(params,galaxy)
-    assert v_m.shape==galaxy.radii.shape
+    assert v_m.shape==galaxy.bin_edges.shape
     
     if not np.all([np.isfinite(item) for item in v_m]):
         print('error: something went wrong in lnlike for galaxy ')
@@ -68,8 +62,8 @@ def lnlike(
     # TODO: probably have to interpolate radii and rotation here to make the 2d modeled field
     chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, v_err_const=galaxy.v_error_2d, record_array=True)
 
-    return -0.5 * (chisq ), 
-           (chisq, v_m, model_2d_field) #must change this return value
+    return -0.5 * (chisq ), \
+           (chisq, v_m, model_2d_field) 
 
 
 def lnprior(theta, bounds):

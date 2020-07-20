@@ -14,7 +14,7 @@ class Galaxy:
             deg_per_pixel,
             bin_edges,
             galaxy_name=None,
-            vlos_2d_data=None,
+            vlos_2d_data=None, #observed 1_mom map from BBarolo
             output_dir='output',
             luminosity=None,
             HI_mass=None,
@@ -39,12 +39,11 @@ class Galaxy:
 
     def set_piecewise_prior_bounds(
             self,
-            radii,
-            vel_bounds=(0,60)
+            bin_edges,
     ):
         bounds={}
-        for index in range(len(radii)):
-            bounds[f"vel_{index}"]= vel_bounds
+        for index in range(len(bin_edges)):
+            bounds[f"vel_{index}"]= (0,galaxy.radii[-1]+.1) #max bounds unique for each galaxy. 0 to slightly higher than last ring
         
         self.bounds = bounds
 
