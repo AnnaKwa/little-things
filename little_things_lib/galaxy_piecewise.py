@@ -44,7 +44,7 @@ class Galaxy:
     ):
         bounds={}
         for index in range(len(bin_edges)):
-            bounds[f"vel_{index}"]= (0,test_rotation_curve[-1]+.1) #max bounds unique for each galaxy. 0 to slightly higher than last ring
+            bounds[f"vel_{index}"]= (0,np.max(test_rotation_curve)+.1) #max bounds unique for each galaxy. 0 to slightly higher than last ring
         
         self.bounds = bounds
 
