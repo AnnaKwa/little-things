@@ -26,9 +26,8 @@ def piecewise_constant(
     bin_edges=galaxy.bin_edges
     for ring in r_arr:
         for radius in range(len(bin_edges)):
-            if radius!=0: 
-                if ring<bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than previous bin edge
-                    vels.append(velocity_at_bin_center[radius-1])
+            if ring<bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than 
+                vels.append(velocity_at_bin_center[radius-1])       #previous bin edge
     return vels
 
 
@@ -37,11 +36,11 @@ def generate_nwalkers_start_points(
         galaxy
 ):
     start_points=[]
-    bin_bounds=list(galaxy.bounds.values())
-    for walker in range(len(galaxy.bin_edges)-1):
+    bin_bounds=sorted(list(galaxy.bounds.values()))
+    for walker in range(nwalkers):
         lis=[]
-        for iteration in range(nwalkers):
-            lis.append(np.random.random()*(bin_bounds[iteration][1]-bin_bounds[iteration][0])+bin_bounds[iteration][0])
+        for radial_bin in range(len(galaxy.bin_edges)-1):
+            lis.append(np.random.random()*(bin_bounds[radial_bin][1]-bin_bounds[radial_bin][0])+bin_bounds[radial_bin][0])
         start_points.append(lis)
         #start point shifted by bounds. numpy output [0,1) --> multiplied by (max-min) then shifted by min.
         #each parameter can have individual bounds defined. No need to make all have same bounds.
