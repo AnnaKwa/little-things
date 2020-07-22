@@ -3,3 +3,5 @@ data/
 little_things_lib/__pycache__
 .DS_Store
 venv/
+*checkpoint.ipynb
+*.pyc
