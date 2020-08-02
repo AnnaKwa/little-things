@@ -23,9 +23,6 @@ def calc_physical_distance_per_pixel(
     return distance_per_pix
 
 
-
-
-
 def _extrapolate_v_outside_last_radius(
         r: float,
         r_last: float,
