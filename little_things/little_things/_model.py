@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Mapping
 
 
 class Model:

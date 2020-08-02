@@ -1,3 +1,4 @@
+from astropy.io import fits
 from dataclasses import dataclass
 import numpy as np
 from scipy.interpolate import interp1d
@@ -5,16 +6,24 @@ from typing import Tuple, Sequence
 import warnings
 
 from ._constants import RAD_PER_ARCSEC
-from ._helpers import calc_physical_distance_per_pixel
-
+from ._helpers import (
+    calc_physical_distance_per_pixel,
+    _interpolate_baryonic_rotation_curve
+)
 
 @dataclass
 class Galaxy:
     name: str
     distance: float
-    vlos_2d_data: np.ndarray
+    observed_2d_vel_field_fits_file: str,
     deg_per_pixel: float
+    v_systemic: float
+    gas_radii: Sequence[float] = None
+    gas_velocities: Sequence[float] = None
+    stellar_radii: Sequence[float] = None
+    stellar_velocities: Sequence[float] = None
     age: float=None
+
 
     """
     name: galaxy name
@@ -22,12 +31,20 @@ class Galaxy:
     vlos_2d_data: np array of 1st moment, from the fits data
     deg_per_pixel: degrees per pixel in data array
     age: in Gyr, optional. Used for SIDM model.
+    stellar/gas radii: Radii that define the stellar/gas rotation curve. 
+        If None, defaults to zero rotation velocity for this component.
+    stellar/gas velocities: Stellar/gas rotation curve. 
+        If None, defaults to zero rotation velocity for this component.
     """
 
     def __post_init__(self):
         self.image_xdim, self.image_ydim = self.vlos_2d_data.shape
         self.kpc_per_pixel = calc_physical_distance_per_pixel(
             self.distance, self.deg_per_pixel)
+        for attribute in ["gas_radii", "gas_velocities", "stellar_radii", "stellar_velocities"]:
+            if getattr(self, attribute) is None:
+                setattr(self, attribute, [0.])
+        self.observed_2d_vel_field = fits.open(observed_2d_vel_field_fits_file)[0].data
 
 
 class RingModel:

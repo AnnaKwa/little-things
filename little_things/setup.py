@@ -9,6 +9,7 @@ setup(
     license='LICENSE.txt',
     description='Model galaxy 1st moment maps with MCMC packages.',
     install_requires=[
+        "astropy",
         "emcee==2.2.1",
         "missingpy",
         "numpy",
