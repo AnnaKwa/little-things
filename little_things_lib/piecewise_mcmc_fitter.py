@@ -24,11 +24,14 @@ def piecewise_constant(
     velocity_at_bin_center=params
     r_arr=galaxy.radii
     bin_edges=galaxy.bin_edges
+    #print('bin_edges: ',bin_edges)
+    #print('r_arr: ',r_arr)
     for ring in r_arr:
         for radius in range(len(bin_edges)):
-            if ring<bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than 
+            if ring<=bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than 
                 vels.append(velocity_at_bin_center[radius-1])       #previous bin edge
-    return vels
+    #print("vels: ",np.array(vels))
+    return np.array(vels)
 
 
 def generate_nwalkers_start_points(
@@ -44,7 +47,7 @@ def generate_nwalkers_start_points(
         start_points.append(lis)
         #start point shifted by bounds. numpy output [0,1) --> multiplied by (max-min) then shifted by min.
         #each parameter can have individual bounds defined. No need to make all have same bounds.
-    return start_points
+    return np.array(start_points)
 
 
 def lnlike(
@@ -52,7 +55,10 @@ def lnlike(
         galaxy,
 ):
     v_m=piecewise_constant(params,galaxy)
-    assert v_m.shape==galaxy.bin_edges.shape
+    #print('v_m: ',v_m)
+    #print('v_m len: ',len(v_m))
+    #print('radii len: ',len(galaxy.radii))
+    assert v_m.shape[0]==(galaxy.radii.shape[0])
     
     if not np.all([np.isfinite(item) for item in v_m]):
         print('error: something went wrong in lnlike for galaxy ')
