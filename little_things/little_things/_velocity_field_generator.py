@@ -12,13 +12,16 @@ def create_2d_velocity_field(
         ring_model: RingModel,
         kpc_per_pixel: float,
         v_systemic: float,
+        image_xdim: int,
+        image_ydim: int,
         n_interp_r=75,
-        n_interp_theta=700
+        n_interp_theta=700,
+        n_neighbors_impute=2,
 ):
     """
-        radii (Sequence[float]): radii for which modeled 1D velocities are provided.
+        radii (Sequence[float]): radii for which modeled 1D velocities are provided. [kpc]
         v_rot (Sequence[float]): Modeled 1D velocities at radii.
- 
+
         n_interp_r (int, optional): Number of radii to use in constructing modeled field.
             Defaults to 75.
         n_interp_theta (int, optional): Number of azimuthal angles to use in construction modeled field.
@@ -35,8 +38,8 @@ def create_2d_velocity_field(
     returns 2d velocity field array
     '''
     # ndarray x/y dims are flipped from ds9 display
-    image_xdim, image_ydim = ring_model.fits_ydim, ring_model.fits_xdim
     v_field = np.zeros(shape=(image_ydim, image_xdim))
+    v_field[400:600, 400:600] = np.nan
     v_rot_interp = interp1d(radii, v_rot)
     radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp_r)
     for r in radii_interp:
@@ -50,7 +53,7 @@ def create_2d_velocity_field(
                 except:
                     print (arr_x, arr_y, v_los)
 
-    imputer = KNNImputer(n_neighbors=2, weights="uniform")
+    imputer = KNNImputer(n_neighbors=n_neighbors_impute, weights="distance")
     v_field = imputer.fit_transform(v_field)
     v_field[v_field == 0] = np.nan
     # rotate to match the fits data field

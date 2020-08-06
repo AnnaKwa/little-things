@@ -15,7 +15,7 @@ from ._helpers import (
 class Galaxy:
     name: str
     distance: float
-    observed_2d_vel_field_fits_file: str,
+    observed_2d_vel_field_fits_file: str
     deg_per_pixel: float
     v_systemic: float
     gas_radii: Sequence[float] = None
@@ -38,19 +38,19 @@ class Galaxy:
     """
 
     def __post_init__(self):
-        self.image_xdim, self.image_ydim = self.vlos_2d_data.shape
         self.kpc_per_pixel = calc_physical_distance_per_pixel(
             self.distance, self.deg_per_pixel)
         for attribute in ["gas_radii", "gas_velocities", "stellar_radii", "stellar_velocities"]:
             if getattr(self, attribute) is None:
                 setattr(self, attribute, [0.])
-        self.observed_2d_vel_field = fits.open(observed_2d_vel_field_fits_file)[0].data
+        self.observed_2d_vel_field = fits.open(self.observed_2d_vel_field_fits_file)[0].data
+        self.image_xdim, self.image_ydim = self.observed_2d_vel_field.shape
 
 
 class RingModel:
     def __init__(
-            self, 
-            ring_param_file: str, 
+            self,
+            ring_param_file: str,
             fits_xdim: int,
             fits_ydim: int,
             distance: float):
@@ -76,9 +76,9 @@ class RingModel:
 
 
 def _check_center_pixels(
-        x_centers: Sequence[int], 
-        y_centers: Sequence[int], 
-        image_xdim: int, 
+        x_centers: Sequence[int],
+        y_centers: Sequence[int],
+        image_xdim: int,
         image_ydim: int):
     for xc, yc in zip(x_centers, y_centers):
         if xc > image_xdim or yc > image_ydim:
@@ -96,8 +96,8 @@ def _check_center_pixels(
 
 def _convert_fits_to_array_coords(
     fits_x: np.ndarray,
-    fits_y: np.ndarray, 
-    image_xdim: int, 
+    fits_y: np.ndarray,
+    image_xdim: int,
     image_ydim: int) -> Tuple[int, int]:
     # because x/y in ds9 fits viewer are different from x/y (row/col)
     # convention used here for numpy arrays
