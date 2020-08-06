@@ -72,7 +72,7 @@ def lnprior(theta, bounds):
     return 0.0
 
 
-def lnprob(params, galaxy):
+def lnprob(params, galaxy, save_blob=True):
     sorted_keys = sorted(list(galaxy.bounds.keys()))
     bounds = np.array(
         [galaxy.bounds[key] for key in sorted_keys])
@@ -80,7 +80,7 @@ def lnprob(params, galaxy):
     if not np.isfinite(lp):
         return -np.inf ,0
     lnl, bb = lnlike(params, galaxy)
-    blob = tuple(params) + bb
+    blob = tuple(params) + bb if save_blob is True else None
     return lp + lnl, blob
 
 
