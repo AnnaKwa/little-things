@@ -3,3 +3,6 @@ data/
 little_things_lib/__pycache__/
 .DS_Store
 venv/
+*.pkl
+*.zip
+*checkpoint.ipynb
