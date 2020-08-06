@@ -17,7 +17,7 @@ class EmceeParameters:
         pass
 
 def piecewise_constant(
-        params, #velocity_at_bin_center = params  
+        params, #velocity_at_bin_center = params
         galaxy
 ):
     vels=[]
@@ -28,7 +28,7 @@ def piecewise_constant(
     #print('r_arr: ',r_arr)
     for ring in r_arr:
         for radius in range(len(bin_edges)):
-            if ring<=bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than 
+            if ring<=bin_edges[radius] and ring>bin_edges[radius-1]: #ring is greater than current bin edge, and less than
                 vels.append(velocity_at_bin_center[radius-1])       #previous bin edge
     #print("vels: ",np.array(vels))
     return np.array(vels)
@@ -59,7 +59,7 @@ def lnlike(
     #print('v_m len: ',len(v_m))
     #print('radii len: ',len(galaxy.radii))
     assert v_m.shape[0]==(galaxy.radii.shape[0])
-    
+
     if not np.all([np.isfinite(item) for item in v_m]):
         print('error: something went wrong in lnlike for galaxy ')
         print(f'piecewise velocities = {params}')
@@ -68,7 +68,7 @@ def lnlike(
     chisq, model_2d_field = chisq_2d(galaxy, galaxy.radii, v_m, v_err_const=galaxy.v_error_2d, record_array=True)
 
     return -0.5 * (chisq ), \
-           (chisq, v_m, model_2d_field) 
+           (chisq, v_m, model_2d_field)
 
 
 def lnprior(theta, bounds):
@@ -78,7 +78,7 @@ def lnprior(theta, bounds):
     return 0.0
 
 
-def lnprob(params, galaxy):
+def lnprob(params, galaxy, save_blob=True):
     sorted_keys = sorted(list(galaxy.bounds.keys()))
     bounds = np.array(
         [galaxy.bounds[key] for key in sorted_keys])
@@ -86,7 +86,7 @@ def lnprob(params, galaxy):
     if not np.isfinite(lp):
         return -np.inf ,0
     lnl, bb = lnlike(params, galaxy)
-    blob = tuple(params) + bb
+    blob = tuple(params) + bb if save_blob is True else None
     return lp + lnl, blob
 
 

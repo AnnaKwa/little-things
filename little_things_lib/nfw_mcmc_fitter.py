@@ -130,7 +130,7 @@ def lnprior(theta, bounds):
     return 0.0
 
 
-def lnprob(theta_mcmc_space, galaxy):
+def lnprob(theta_mcmc_space, galaxy, save_blob=True):
     bounds = np.array(
         [galaxy.bounds['rhos'],
          galaxy.bounds['rs'],
@@ -141,7 +141,7 @@ def lnprob(theta_mcmc_space, galaxy):
     if not np.isfinite(lp):
         return -np.inf ,0
     lnl, bb = lnlike(params_physical_space, galaxy)
-    blob = params_physical_space + bb
+    blob = params_physical_space + bb if save_blob is True else None
     return lp + lnl, blob
 
 
