@@ -188,12 +188,12 @@ class Galaxy:
                               f"Is this intended?")
 
 
-
     def create_2d_velocity_field(
             self,
             radii,
             v_rot,
-            n_interp=75
+            n_interp_r=150,
+            n_interp_theta=150
     ):
         '''
         uses tilted ring model parameters to calculate velocity field
@@ -204,12 +204,13 @@ class Galaxy:
 
         returns 2d velocity field array
         '''
-        v_field = np.zeros(shape=(self.image_ydim, self.image_xdim))
+        v_field = np.empty(shape=(self.image_ydim, self.image_xdim))
+        v_field[:] = np.nan
         v_rot_interp = interp1d(radii, v_rot)
-        radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp)
+        radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp_r)
         for r in radii_interp:
             v = v_rot_interp(r)
-            for theta in np.linspace(0, 2.*np.pi, 800):
+            for theta in np.linspace(0, 2.*np.pi, n_interp_theta):
                 x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
                 if (self.image_xdim - 1 > x > 0 and y < self.image_ydim-1 and y>0):
                     arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
@@ -218,7 +219,7 @@ class Galaxy:
                     except:
                         print (arr_x, arr_y, v_los)
 
-        imputer = KNNImputer(n_neighbors=2, weights="uniform")
+        imputer = KNNImputer(n_neighbors=3, weights="distance")
         v_field = imputer.fit_transform(v_field)
         v_field[v_field == 0] = np.nan
         # rotate to match the fits data field
