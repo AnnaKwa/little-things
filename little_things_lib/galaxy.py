@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 import warnings
 
-from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius
+from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius, create_blurred_mask
 
 SEC_PER_GYR = 3.15576e+16
 
@@ -192,7 +192,8 @@ class Galaxy:
             self,
             radii,
             v_rot,
-            n_interp=75
+            n_interp_r=150,
+            n_interp_theta=150
     ):
         '''
         uses tilted ring model parameters to calculate velocity field
@@ -203,12 +204,13 @@ class Galaxy:
 
         returns 2d velocity field array
         '''
-        v_field = np.zeros(shape=(self.image_ydim, self.image_xdim))
+        v_field = np.empty(shape=(self.image_ydim, self.image_xdim))
+        v_field[:] = np.nan
         v_rot_interp = interp1d(radii, v_rot)
-        radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp)
+        radii_interp = np.linspace(np.min(radii), np.max(radii), n_interp_r)
         for r in radii_interp:
             v = v_rot_interp(r)
-            for theta in np.linspace(0, 2.*np.pi, 800):
+            for theta in np.linspace(0, 2.*np.pi, n_interp_theta):
                 x, y, v_los = self._calc_v_los_at_r_theta(v, r, theta)
                 if (self.image_xdim - 1 > x > 0 and y < self.image_ydim-1 and y>0):
                     arr_x, arr_y = int(np.round(x, 0)), int(np.round(y, 0))
@@ -216,10 +218,12 @@ class Galaxy:
                         v_field[arr_y][arr_x] = v_los
                     except:
                         print (arr_x, arr_y, v_los)
-
-        imputer = KNNImputer(n_neighbors=2, weights="uniform")
-        v_field = imputer.fit_transform(v_field)
+        near_neighbors_mask = create_blurred_mask(v_field)
+        imputer = KNNImputer(n_neighbors=3, weights="distance")
+        v_field = imputer.fit_transform(
+            np.where(near_neighbors_mask==1, v_field, 0.))
         v_field[v_field == 0] = np.nan
+
         # rotate to match the fits data field
         v_field = np.rot90(v_field, 3)
         return v_field

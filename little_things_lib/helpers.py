@@ -1,13 +1,23 @@
 import numpy as np
 import functools
+from copy import copy
 from inspect import signature, Parameter
+from scipy.ndimage.filters import gaussian_filter
 
 from .constants import GNEWTON
 RADIANS_PER_DEG = np.pi / 180.
 
 
-#def plot_posterior(sampler, index=None):
-    
+def create_blurred_mask(galaxy_array):
+    # creates a mask for pixels that don't have neighbors within 3 pixels
+    # useful for only allowing KNN to fill missing values that have nonzero neighbors
+    arr = copy(galaxy_array)
+    np.nan_to_num(arr, 0)
+    mask = gaussian_filter(np.nan_to_num(arr, 0), sigma=6, order=0)
+    mask[mask == 0] = False
+    mask[mask > 0] = 1
+    return mask
+
 
 def extrapolate_v_outside_last_radius(
         r,

@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import interp1d
 import warnings
 
-from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius
+from .helpers import calc_physical_distance_per_pixel, extrapolate_v_outside_last_radius, create_blurred_mask
 
 SEC_PER_GYR = 3.15576e+16
 
@@ -45,7 +45,7 @@ class Galaxy:
         bounds={}
         for index in range(len(bin_edges)-1):
             bounds[f"vel_{index}"]= [0,np.max(test_rotation_curve)*3] #max bounds unique for each galaxy. 0 to slightly higher than last ring
-        
+
         self.bounds = bounds
 
 
@@ -218,10 +218,12 @@ class Galaxy:
                         v_field[arr_y][arr_x] = v_los
                     except:
                         print (arr_x, arr_y, v_los)
-
+        near_neighbors_mask = create_blurred_mask(v_field)
         imputer = KNNImputer(n_neighbors=3, weights="distance")
-        v_field = imputer.fit_transform(v_field)
+        v_field = imputer.fit_transform(
+            np.where(near_neighbors_mask==1, v_field, 0.))
         v_field[v_field == 0] = np.nan
+
         # rotate to match the fits data field
         v_field = np.rot90(v_field, 3)
         return v_field
