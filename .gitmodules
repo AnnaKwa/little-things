@@ -1,0 +1,3 @@
+[submodule "fit2d"]
+	path = fit2d
+	url = https://github.com/AnnaKwa/fit2d
