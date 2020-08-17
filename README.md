@@ -13,6 +13,7 @@ To update it to the latest version,
 # execute from the top level of the little-things repository
 cd fit2d
 git submodule update --remote
+git pull
 ```
 
 You can also install it locally: first, `cd` into the fit2d directory, then `pip install -e .` .
