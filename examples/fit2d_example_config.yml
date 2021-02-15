@@ -1,0 +1,58 @@
+
+# number of bins in fit
+num_bins: 4
+
+# optional- can define range of radii to fit in kpc here
+# if provided, will divide the radii between (rmin, rmax) into num_bins
+rmin: 1.
+rmax: 2.
+
+
+# One, but not both, should be provided to lnlike
+v_err_const: 10. # [km/s] constant error per pixel
+v_err_2d: null
+
+# Omit the following block if you are only fitting velocity as a parameter
+# mapping of ring struct params to their index in the parameters (same as specified in bounds)
+# this is provided as an optional argument to lnlike to tell it which parameters to use as inc and pos_angle
+fit_structural_params: 
+  inc: 1
+  pos_angle: 2
+
+
+# min and max bounds for each bin
+vmin: 0.
+vmax: 200.
+
+# min and max inc, pos angle in RADIANS
+inc_min: 0.7
+inc_max: 0.95
+pos_angle_min: 4.
+pos_angle_max: 7.
+
+name: "UGC3974"
+distance: 8000. # [kpc]
+observed_2d_vel_field_fits_file: "/home/anna/Desktop/fit2d/data/UGC3974_1mom.fits"
+# to use the dispersion as a source of errors, provide this file name
+#observed_2d_dispersion_fits_file: "/home/anna/Desktop/fit2d/data/UGC3974_2mom.fits"
+deg_per_pixel: 0.000417
+v_systemic: 270.  # [km/x] 
+
+ring_param_file: "/home/anna/Desktop/fit2d/data/UGC3974_ring_parameters.txt"
+
+mask_sigma: 1.
+random_seed: 1234
+
+mcmc_nwalkers: 20
+mcmc_niter: 4
+mcmc_ndim: 3 # Do not change this if fitting one ring at a time. 1 for vel + 2 for inc and pos angle
+mcmc_nthreads: 4
+mcmc_stretch_move_a: 2 
+
+
+# Option to save every batch_size iterations in case of crash
+# Increase this; 2 is a very low value just for testing
+batch_size: 2
+
+# option to save outputs in a particular directory
+save_dir: null
