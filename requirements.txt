@@ -46,7 +46,7 @@ pandas==0.25.3
 partd==1.1.0
 pathspec==0.6.0
 pbr==5.4.4
-pillow==6.2.1
+pillow==8.1.1
 pipdeptree==0.13.2
 protobuf==3.11.0
 pyarrow==0.12.1
