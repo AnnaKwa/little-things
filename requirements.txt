@@ -72,7 +72,7 @@ smmap2==2.0.5
 sphinx-rtd-theme==0.4.3
 toml==0.10.0
 typed-ast==1.4.0
-urllib3==1.25.7
+urllib3==1.25.8
 xgcm==0.2.0
 
 
